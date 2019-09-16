@@ -21,13 +21,13 @@
 
 $LambdaInput = '{
    "AccountName": "stufffordoingthings",
-   "Email": "stephen1@bawks.com",
+   "Email": "stephenbawks@quickenloans.com",
    "IamUserAccessToBilling": "ALLOW",
-   "RoleName": "BawksOrgAcct"
+   "RoleName": "QLPayerAcctRole"
 }'
 
 # Uncomment to send the input event to CloudWatch Logs
-Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
+Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress)
 
 
 function post_to_teams {
@@ -147,7 +147,7 @@ function update_saml_identity_provider {
     .SYNOPSIS
         Updates SAML Provider in account.
     .DESCRIPTION
-        Somestuff
+        Assumes a role in the newly created account and creates a SAML Identity Provider.
     #>
 
     Param
@@ -160,24 +160,31 @@ function update_saml_identity_provider {
 
     Write-Host "Checking the current IAM SAML Provider...."
 
+    # AWSControlTowerExecution
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole").Credentials
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials #dont forget to comment out the organiazation profile here
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
-    $saml = Get-content -Path "./saml/saml.xml"
-    New-IAMSAMLProvider -Name "QL-Ping-Prod" -SAMLMetadataDocument $saml -Credential $Credentials
+    Try {
+        $saml = Get-content -Path "./saml/saml.xml"
 
-    $saml_arn = "arn:aws:iam::" + $new_account_id + ":saml-provider/QL-Ping-Prod"
-    $check_saml_update = Get-IAMSAMLProvider -SAMLProviderArn $saml_arn -Credential $Credentials
+        $calculated_saml_arn = "arn:aws:iam::" + $new_account_id + ":saml-provider/QL-Ping-Prod"
+        $response_saml = New-IAMSAMLProvider -Name "QL-Ping-Prod" -SAMLMetadataDocument $saml -Credential $Credentials
 
-    # check the current iam account alias
-    if ($saml_arn -eq $check_saml_update) {
-        Write-Host "Checking SAML IAM Provider...."
-        Write-Host "------------------------------"
+        if ($calculated_saml_arn -eq $response_saml) {
+            Write-Host "Checking SAML IAM Provider...."
+            Write-Host "------------------------------"
+            Write-Host "SAML IAM creation Successful  "
 
-        post_to_teams -process "Account SAML Provider" -status "Success" -details $saml_arn
+            post_to_teams -process "Account SAML Provider" -status "Success" -details $response_saml
+        }
+
+    } Catch {
+        Write-Host "An error occurred: " + $error[0].Exception.message -ForegroundColor Green
+        post_to_teams -process "Account SAML Provider" -status "Failure" -details $error[0].Exception.message
     }
+
 }
 
 
