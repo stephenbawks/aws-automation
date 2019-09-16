@@ -1,15 +1,15 @@
 # Import-Module -Name AWSPowerShell.NetCore
 
 
-# PowerShell script file to be executed as a AWS Lambda function. 
-# 
+# PowerShell script file to be executed as a AWS Lambda function.
+#
 # When executing in Lambda the following variables will be predefined.
 #   $LambdaInput - A PSObject that contains the Lambda function input data.
 #   $LambdaContext - An Amazon.Lambda.Core.ILambdaContext object that contains information about the currently running Lambda environment.
 #
 # The last item in the PowerShell pipeline will be returned as the result of the Lambda function.
 #
-# To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement 
+# To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement
 # indicating the module and version.
 
 #Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.422.0'}
@@ -29,6 +29,65 @@ $LambdaInput = '{
 # Uncomment to send the input event to CloudWatch Logs
 Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
 
+
+function post_to_teams {
+    param (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $process,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $status,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $details
+    )
+
+    # this will pull from the environmental values on the lambda
+    # this should be the webhook address that the function will post to
+    # disabling for the moment until deployed, testing still
+    # $uri = $ENV:uri_address
+    $uri = 'https://outlook.office.com/webhook/99a6affa-0a11-4a95-a7e0-b05bfbae281e@e58c8e81-abd8-48a8-929d-eb67611b83bd/IncomingWebhook/249e9c03ce1641b081191e5caee13dd4/7d92650b-7e73-4619-b445-5ddd6890cf73'
+
+    # these values would be retrieved from or set by an application
+    # $status = 'success'
+    $pass_fail_image = $null
+
+    if ($status -eq "Success") {
+        $pass_fail_image = 'https://cdn3.iconfinder.com/data/icons/flat-actions-icons-9/792/Tick_Mark_Dark-512.png'
+    }
+    elseif ($status -eq "Failure") {
+        $pass_fail_image = 'https://www.iconsdb.com/icons/preview/red/x-mark-xxl.png'
+    }
+
+    $body = ConvertTo-Json -Depth 4 @{
+        title    = 'AWS Account Automation Notification'
+        text     = "$process completed with status $status"
+        sections = @(
+            @{
+                activityTitle    = 'AWS Account Automation'
+                activitySubtitle = 'Automated Account Creation Platform'
+                activityText     = 'A change was evaluated and new results are available.'
+                activityImage    = $pass_fail_image
+            },
+            @{
+                title = 'Details'
+                facts = @(
+                    @{
+                        name  = 'Account Creation Step'
+                        value = $process
+                    },
+                    @{
+                        name  = 'Details'
+                        value = $details
+                    }
+                )
+            }
+        )
+    }
+
+    Invoke-RestMethod -uri $uri -Method Post -body $body -ContentType 'application/json'
+}
+
+
+
 function update_account_alias {
 
     <#
@@ -36,8 +95,8 @@ function update_account_alias {
         Attempts to assume into new organization account to change IAM Account Alias
     .DESCRIPTION
         This function is meant to update the account alias in a newly created organization account.
-        Will attempt to assume the organization role in the new account to change the account alias.  
-        It first checks current status to compare to new alias.  If there is a difference it 
+        Will attempt to assume the organization role in the new account to change the account alias.
+        It first checks current status to compare to new alias.  If there is a difference it
         creates the new account alias to be what is passed in to the function.
     #>
 
@@ -79,61 +138,56 @@ function update_account_alias {
     }
 }
 
-function post_to_teams {
-    param (
+
+
+
+function update_saml_identity_provider {
+
+    <#
+    .SYNOPSIS
+        Updates SAML Provider in account.
+    .DESCRIPTION
+        Somestuff
+    #>
+
+    Param
+    (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $process,
+        [string] $new_account_id,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $status
+        [string] $org_role_name
     )
-    
 
-    $uri = 'https://outlook.office.com/webhook/99a6affa-0a11-4a95-a7e0-b05bfbae281e@e58c8e81-abd8-48a8-929d-eb67611b83bd/IncomingWebhook/c0646c27c6924abbb8c4f3be5a74e4b6/7d92650b-7e73-4619-b445-5ddd6890cf73'
+    Write-Host "Checking the current IAM SAML Provider...."
 
-    # these values would be retrieved from or set by an application
-    # $status = 'success'
-    $pass_fail_image = $null
+    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    if ($status -eq "Success") {
-        $pass_fail_image = 'https://cdn3.iconfinder.com/data/icons/flat-actions-icons-9/792/Tick_Mark_Dark-512.png'
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole").Credentials
+    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+
+    $saml = Get-content -Path "./saml/saml.xml"
+    New-IAMSAMLProvider -Name "QL-Ping-Prod" -SAMLMetadataDocument $saml -Credential $Credentials
+
+    $saml_arn = "arn:aws:iam::" + $new_account_id + ":saml-provider/QL-Ping-Prod"
+    $check_saml_update = Get-IAMSAMLProvider -SAMLProviderArn $saml_arn -Credential $Credentials
+
+    # check the current iam account alias
+    if ($saml_arn -eq $check_saml_update) {
+        Write-Host "Checking SAML IAM Provider...."
+        Write-Host "------------------------------"
+
+        post_to_teams -process "Account SAML Provider" -status "Success" -details $saml_arn
     }
-    elseif ($status -eq "Failure") {
-        $pass_fail_image = 'https://www.iconsdb.com/icons/preview/red/x-mark-xxl.png'
-    }
-
-    $body = ConvertTo-Json -Depth 4 @{
-        title    = 'AWS Account Automation Notification'
-        text     = "$process completed with status $status"
-        sections = @(
-            @{
-                activityTitle    = 'AWS Account Automation'
-                activitySubtitle = 'Automated Account Creation Platform'
-                activityText     = 'A change was evaluated and new results are available.'
-                activityImage    = $pass_fail_image
-            },
-            @{
-                title = 'Details'
-                facts = @(
-                    @{
-                        name  = 'Account Creation Step'
-                        value = $process
-                    },
-                    @{
-                        name  = 'Result'
-                        value = $status
-                    }
-                )
-            }
-        )
-    }
-
-    # $extra_details = ConvertTo-Json -Depth 4 @{
-    #     title = 'Account Name'
-    #     text  = "$process completed with status $status"
-    # }
-
-    Invoke-RestMethod -uri $uri -Method Post -body $body -ContentType 'application/json'
 }
+
+
+
+
+
+
+
+
+
 
 $account_to_create = ConvertFrom-Json -InputObject $LambdaInput
 Write-Host $account_to_create
@@ -152,12 +206,13 @@ Try {
         if ($check_status.State.Value -eq "SUCCEEDED") {
             $new_account = Get-ORGAccount -region us-east-2 -AccountId $check_status.AccountId
             Write-Host "---- Account Creation Successful ----"
-            Write-Host "name:    " $new_account.Id
+            Write-Host "Account ID:    " $new_account.Id
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
 
+            $new_account_id = "Account Number: " + $new_account.Id
             # post message to teams channel on success
-            post_to_teams -process "Account Creation" -status "Success"
+            post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "---- Account Creation Failed ----"
@@ -166,7 +221,7 @@ Try {
             Write-Host "Request Time:  " $check_status.RequestedTimestamp
 
             # post message to teams channel on failure
-            post_to_teams -process "Account Creation" -status "Failure"
+            post_to_teams -process "Account Creation" -status "Failure" -details "Email address is already in use for another account in the Organization."
         }
     } While ($check_status.State.Value -eq "IN_PROGRESS")
 }
