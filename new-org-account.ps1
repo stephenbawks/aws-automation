@@ -133,12 +133,16 @@ function update_account_alias {
     }
     elseif ($current_account_alias -eq $account_alias) {
         # current iam account alias is already set up to match
+        Write-Host "----------------------------------------------"
         Write-Host "IAM Account is already correct. Nothing to do."
         Write-Host "----------------------------------------------"
+        Write-Host ""
     }
 
+    Write-Host "----------------------------------------"
     Write-Host "Changing IAM Account Password Policy...."
     Write-Host "----------------------------------------"
+    Write-Host ""
 
     Try {
         Update-IAMAccountPasswordPolicy -MaxPasswordAge 90 -PasswordReusePrevention 6 -RequireLowercaseCharacter $true -RequireNumber $true -RequireSymbol $true -RequireUppercaseCharacter $true -Credential $Credentials
