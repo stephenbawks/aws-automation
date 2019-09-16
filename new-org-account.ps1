@@ -120,15 +120,19 @@ function update_account_alias {
     # check the current iam account alias
     $current_account_alias = Get-IAMAccountAlias -Credential $Credentials
     if ($current_account_alias -ne $account_alias) {
+        Write-Host "------------------------------"
         Write-Host "Changing IAM Account Alias...."
         Write-Host "------------------------------"
+        Write-Host ""
         New-IAMAccountAlias -AccountAlias $account_alias -Credential $Credentials
 
         # check to see if the iam account alias was succesfully updated
         $new_account_alias = Get-IAMAccountAlias -Credential $Credentials
         if ($new_account_alias -eq $account_alias) {
-            Write-Host "---- IAM Alias creation Successful ----"
+            Write-Host "--------------- IAM Alias creation Successful -----------------------"
             Write-Host "IAM Sign-In URL: https://$account_alias.signin.aws.amazon.com/console"
+            Write-Host "---------------------------------------------------------------------"
+            Write-Host ""
         }
     }
     elseif ($current_account_alias -eq $account_alias) {
@@ -146,10 +150,14 @@ function update_account_alias {
 
     Try {
         Update-IAMAccountPasswordPolicy -MaxPasswordAge 90 -PasswordReusePrevention 6 -RequireLowercaseCharacter $true -RequireNumber $true -RequireSymbol $true -RequireUppercaseCharacter $true -Credential $Credentials
-        $password_policy = Get-IAMAccountPasswordPolicy -Credential $Credentials | ConvertTo-Json | ConvertFrom-Json
+        $password_policy = Get-IAMAccountPasswordPolicy -Credential $Credentials
 
+        Write-Host ($password_policy | ConvertTo-Json) 
+        Write-Host "------------------------------------------------"
         Write-Host "---- IAM Account Password Policy Successful ----"
 
+        $password_policy = $password_policy | ConvertTo-Json | ConvertFrom-Json
+        Write-Host "------------------------------------------------"
         post_to_teams -process "IAM Account Password Policy" -status "Success" -details $password_policy
     }
     Catch {
