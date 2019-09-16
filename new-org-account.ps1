@@ -137,12 +137,18 @@ function update_account_alias {
         Write-Host "----------------------------------------------"
     }
 
+    Write-Host "Changing IAM Account Password Policy...."
+    Write-Host "----------------------------------------"
+
     Try {
         Update-IAMAccountPasswordPolicy -MaxPasswordAge 90 -PasswordReusePrevention 6 -RequireLowercaseCharacter $true -RequireNumber $true -RequireSymbol $true -RequireUppercaseCharacter $true -Credential $Credentials
         $password_policy = Get-IAMAccountPasswordPolicy -Credential $Credentials | ConvertTo-Json | ConvertFrom-Json
 
+        Write-Host "---- IAM Account Password Policy Successful ----"
+
         post_to_teams -process "IAM Account Password Policy" -status "Success" -details $password_policy
-    } Catch {
+    }
+    Catch {
         Write-Host "An error occurred: " + $error[0].Exception.message -ForegroundColor Green
         post_to_teams -process "IAM Account Password Policy" -status "Failure" -details $error[0].Exception.message
     }
@@ -191,7 +197,8 @@ function update_saml_identity_provider {
             post_to_teams -process "Account SAML Provider" -status "Success" -details $response_saml
         }
 
-    } Catch {
+    }
+    Catch {
         Write-Host "An error occurred: " + $error[0].Exception.message -ForegroundColor Green
         post_to_teams -process "Account SAML Provider" -status "Failure" -details $error[0].Exception.message
     }
