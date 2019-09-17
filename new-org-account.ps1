@@ -247,9 +247,6 @@ function add_account_to_grafana {
 
 
 
-
-
-
 # Start of the acccount creation process
 $account_to_create = ConvertFrom-Json -InputObject $LambdaInput
 Write-Host "Creating a new AWS Account...."
