@@ -220,6 +220,27 @@ function update_saml_identity_provider {
 }
 
 
+function add_account_to_grafana {
+
+    <#
+    .SYNOPSIS
+        Updates SAML Provider in account.
+    .DESCRIPTION
+        Assumes a role in the newly created account and creates a SAML Identity Provider.
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $org_role_name
+    )
+    
+    Write-Host "Attempting to add new AWS account to Grafana...."
+
+    #some stuff goes here, need to get the api information from TEAM SI
+}
 
 
 
@@ -228,10 +249,13 @@ function update_saml_identity_provider {
 
 
 
+# Start of the acccount creation process
 $account_to_create = ConvertFrom-Json -InputObject $LambdaInput
+Write-Host "Creating a new AWS Account...."
+Write-Host "------------------------------"
+Write-Host ""
 Write-Host $account_to_create
-
-# $nl = [Environment]::NewLine
+Write-Host ""
 
 Try {
     $create_account = New-ORGAccount -AccountName $account_to_create.AccountName -Email $account_to_create.Email -IamUserAccessToBilling $account_to_create.IamUserAccessToBilling -RoleName $account_to_create.RoleName -Region us-east-2
@@ -240,7 +264,7 @@ Try {
 
     Do {
         Write-Host "Waiting for account to finish creating...."
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
             $new_account = Get-ORGAccount -region us-east-2 -AccountId $check_status.AccountId
