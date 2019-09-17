@@ -45,8 +45,8 @@ function post_to_teams {
     # this will pull from the environmental values on the lambda
     # this should be the webhook address that the function will post to
     # disabling for the moment until deployed, testing still
-    # $uri = $ENV:teams_uri_address
-    $uri = 'https://outlook.office.com/webhook/99a6affa-0a11-4a95-a7e0-b05bfbae281e@e58c8e81-abd8-48a8-929d-eb67611b83bd/IncomingWebhook/249e9c03ce1641b081191e5caee13dd4/7d92650b-7e73-4619-b445-5ddd6890cf73'
+    $uri = $ENV:teams_uri_address
+    # $uri = 'https://outlook.office.com/webhook/99a6affa-0a11-4a95-a7e0-b05bfbae281e@e58c8e81-abd8-48a8-929d-eb67611b83bd/IncomingWebhook/249e9c03ce1641b081191e5caee13dd4/7d92650b-7e73-4619-b445-5ddd6890cf73'
 
     # these values would be retrieved from or set by an application
     # $status = 'success'
