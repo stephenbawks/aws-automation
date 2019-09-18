@@ -236,10 +236,34 @@ function add_account_to_grafana {
         [Parameter(Mandatory = $true, Position = 1)]
         [string] $org_role_name
     )
-    
+
     Write-Host "Attempting to add new AWS account to Grafana...."
 
     #some stuff goes here, need to get the api information from TEAM SI
+
+    $grafana_token = $ENV:grafana_token
+    Get-SSMParameterValue
+    (Get-SSMParameterValue -Name "the_parameter_name_you_specified" –WithDecryption $true).Parameters
+
+    $headers = @{}
+    $headers.Add("Cache-Control", "no-cache")
+    $headers.Add("Authorization", "Bearer $grafana_token")
+
+    $body = ConvertTo-Json @{
+        name     = 'name'
+        type     = 'cloudwatch'
+        acess    = 'proxy'
+        jsondata = @(
+            @{
+                authType      = 'arn'
+                defaultRegion = 'us-east-2'
+                assumeRoleArn = "arn:aws:iam::" + $account_num + ":role/QL-Base-Account-Grafana-Assume-Cloudwatch-Role"
+            }
+        )
+    }
+
+    $response = Invoke-RestMethod -Method POST -Headers $headers 'https://grafana.qlmetrics.com/api/datasources' -ContentType 'application/json' -Body $body
+
 }
 
 
