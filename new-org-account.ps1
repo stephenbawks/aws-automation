@@ -241,9 +241,8 @@ function add_account_to_grafana {
 
     #some stuff goes here, need to get the api information from TEAM SI
 
-    $grafana_token = $ENV:grafana_token
-    Get-SSMParameterValue
-    (Get-SSMParameterValue -Name "the_parameter_name_you_specified" –WithDecryption $true).Parameters
+    # $grafana_token = $ENV:grafana_token
+    $grafana_token = (Get-SSMParameterValue -Name "the_parameter_name_you_specified" –WithDecryption $true).Parameters
 
     $headers = @{}
     $headers.Add("Cache-Control", "no-cache")
