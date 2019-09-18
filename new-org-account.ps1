@@ -224,9 +224,9 @@ function add_account_to_grafana {
 
     <#
     .SYNOPSIS
-        Updates SAML Provider in account.
+        Will reach out to Grafana and add new account as a data source
     .DESCRIPTION
-        Assumes a role in the newly created account and creates a SAML Identity Provider.
+        Does some stuff, need to figure it out.
     #>
 
     Param
