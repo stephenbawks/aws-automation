@@ -31,6 +31,8 @@ $LambdaInput = '{
 # Uncomment to send the input event to CloudWatch Logs
 Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress)
 
+# app id 203880
+$app_id = $ENV:app_id
 
 function post_to_teams {
     param (
@@ -45,7 +47,8 @@ function post_to_teams {
     # this will pull from the environmental values on the lambda
     # this should be the webhook address that the function will post to
     # disabling for the moment until deployed, testing still
-    $uri = (Get-SSMParameterValue -Name "/kraken/prod-aws/203880/teams_uri_address" –WithDecryption $true).Parameters
+
+    $uri = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/teams_uri_address" –WithDecryption $true).Parameters
 
     # these values would be retrieved from or set by an application
     # $status = 'success'
@@ -242,7 +245,8 @@ function add_account_to_grafana {
 
     #some stuff goes here, need to get the api information from TEAM SI
 
-    $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/203880/grafana_token" –WithDecryption $true).Parameters
+    $grafana_url = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_url" –WithDecryption $true).Parameters
+    $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_token" –WithDecryption $true).Parameters
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add('Content-Type', 'application/json')
@@ -260,10 +264,7 @@ function add_account_to_grafana {
         }
     }
 
-    $nonprod = 'https://test.squigglelines.com/api/datasources'
-    $prod = 'https://grafana.qlmetrics.com/api/datasources'
-
-    $response = Invoke-RestMethod -Uri $nonprod -Method 'POST' -Headers $headers  -Body $body -ContentType 'application/json'
+    $response = Invoke-RestMethod -Uri $grafana_url -Method 'POST' -Headers $headers  -Body $body -ContentType 'application/json'
 
     Write-Host ($response | ConvertTo-Json)
 
