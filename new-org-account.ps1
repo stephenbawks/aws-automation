@@ -92,6 +92,61 @@ function post_to_teams {
 
 
 
+
+function add_account_to_hal {
+
+    <#
+    .SYNOPSIS
+        Attempts to add the new aws account to HAL
+    .DESCRIPTION
+        Some Description goes here
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $org_role_name
+    )
+
+    Write-Host "Checking the current IAM Account Alias...."
+
+
+}
+
+
+
+
+function add_account_to_redlock {
+
+    <#
+    .SYNOPSIS
+        Attempts to add the new aws account to redlock
+    .DESCRIPTION
+        Some Description goes here
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $org_role_name
+    )
+
+    Write-Host "Checking the current IAM Account Alias...."
+
+
+}
+
+
+
+
 function update_account_alias {
 
     <#
