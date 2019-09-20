@@ -298,8 +298,6 @@ function add_account_to_grafana {
 
     Write-Host "Attempting to add new AWS account to Grafana...."
 
-    #some stuff goes here, need to get the api information from TEAM SI
-
     $grafana_url = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_url" –WithDecryption $true).Parameters
     $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_token" –WithDecryption $true).Parameters
 
