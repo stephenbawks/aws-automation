@@ -31,6 +31,8 @@ $LambdaInput = '{
 # Uncomment to send the input event to CloudWatch Logs
 Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress)
 
+# app id 203880
+$app_id = $ENV:app_id
 
 function post_to_teams {
     param (
@@ -45,8 +47,8 @@ function post_to_teams {
     # this will pull from the environmental values on the lambda
     # this should be the webhook address that the function will post to
     # disabling for the moment until deployed, testing still
-    $uri = $ENV:teams_uri_address
-    # $uri = 'https://outlook.office.com/webhook/99a6affa-0a11-4a95-a7e0-b05bfbae281e@e58c8e81-abd8-48a8-929d-eb67611b83bd/IncomingWebhook/249e9c03ce1641b081191e5caee13dd4/7d92650b-7e73-4619-b445-5ddd6890cf73'
+
+    $uri = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/teams_uri_address" –WithDecryption $true).Parameters
 
     # these values would be retrieved from or set by an application
     # $status = 'success'
@@ -87,6 +89,61 @@ function post_to_teams {
 
     Invoke-RestMethod -uri $uri -Method Post -body $body -ContentType 'application/json'
 }
+
+
+
+
+function add_account_to_hal {
+
+    <#
+    .SYNOPSIS
+        Attempts to add the new aws account to HAL
+    .DESCRIPTION
+        Some Description goes here
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $org_role_name
+    )
+
+    Write-Host "Checking the current IAM Account Alias...."
+
+
+}
+
+
+
+
+function add_account_to_redlock {
+
+    <#
+    .SYNOPSIS
+        Attempts to add the new aws account to redlock
+    .DESCRIPTION
+        Some Description goes here
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $org_role_name
+    )
+
+    Write-Host "Checking the current IAM Account Alias...."
+
+
+}
+
 
 
 
@@ -234,12 +291,36 @@ function add_account_to_grafana {
         [Parameter(Mandatory = $true, Position = 0)]
         [string] $new_account_id,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $org_role_name
+        [string] $org_role_name,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $account_name
     )
-    
+
     Write-Host "Attempting to add new AWS account to Grafana...."
 
-    #some stuff goes here, need to get the api information from TEAM SI
+    $grafana_url = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_url" –WithDecryption $true).Parameters
+    $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_token" –WithDecryption $true).Parameters
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add('Content-Type', 'application/json')
+    $headers.Add('Authorization', 'Bearer ' + $grafana_token)
+
+    $body = ConvertTo-Json -Compress -Depth 2 @{
+        name      = $account_name
+        type      = 'cloudwatch'
+        url       = 'http://monitoring.us-east-2.amazonaws.com'
+        access    = 'proxy'
+        jsondata  = @{
+                authType      = 'arn'
+                defaultRegion = 'us-east-2'
+                assumeRoleArn = "arn:aws:iam::" + $new_account_id + ":role/QL-Base-Account-Grafana-Assume-Cloudwatch-Role"
+        }
+    }
+
+    $response = Invoke-RestMethod -Uri $grafana_url -Method 'POST' -Headers $headers  -Body $body -ContentType 'application/json'
+
+    Write-Host ($response | ConvertTo-Json)
+
 }
 
 
