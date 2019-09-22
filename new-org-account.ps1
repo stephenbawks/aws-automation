@@ -20,19 +20,14 @@
 
 
 
+function Get-TimeStamp {
+    # function to attach a timestamp to the logs
+    # mainly for troubleshooting
+    return "[{0:MM/dd/yy} {0:HH:mm:ss}]" -f (Get-Date)
+    
+}
 
-$LambdaInput = '{
-   "AccountName": "stufffordoingthings",
-   "Email": "stephenbawks@quickenloans.com",
-   "IamUserAccessToBilling": "ALLOW",
-   "RoleName": "QLPayerAcctRole"
-}'
 
-# Uncomment to send the input event to CloudWatch Logs
-Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress)
-
-# app id 203880
-$app_id = $ENV:app_id
 
 function post_to_teams {
     param (
@@ -306,14 +301,14 @@ function add_account_to_grafana {
     $headers.Add('Authorization', 'Bearer ' + $grafana_token)
 
     $body = ConvertTo-Json -Compress -Depth 2 @{
-        name      = $account_name
-        type      = 'cloudwatch'
-        url       = 'http://monitoring.us-east-2.amazonaws.com'
-        access    = 'proxy'
-        jsondata  = @{
-                authType      = 'arn'
-                defaultRegion = 'us-east-2'
-                assumeRoleArn = "arn:aws:iam::" + $new_account_id + ":role/QL-Base-Account-Grafana-Assume-Cloudwatch-Role"
+        name     = $account_name
+        type     = 'cloudwatch'
+        url      = 'http://monitoring.us-east-2.amazonaws.com'
+        access   = 'proxy'
+        jsondata = @{
+            authType      = 'arn'
+            defaultRegion = 'us-east-2'
+            assumeRoleArn = "arn:aws:iam::" + $new_account_id + ":role/QL-Base-Account-Grafana-Assume-Cloudwatch-Role"
         }
     }
 
@@ -324,30 +319,54 @@ function add_account_to_grafana {
 }
 
 
+##################################################################################
+<#
+.SYNOPSIS
+    Creates a new AWS Account in an Organization
+.DESCRIPTION
+    This will attempt to create a new account.  Kicks off the process by 
+    creating a new account.  After the account is created it will then
+    run numerous functions that all provide additional value.
+#>
+##################################################################################
 
 
+##################################################################################
+# Lambda Environment Variables
+# app id 203880
+# Pulls app_id from the lambda environment variable
+
+$app_id = $ENV:app_id
+
+##################################################################################
 
 
 # Start of the acccount creation process
-$account_to_create = ConvertFrom-Json -InputObject $LambdaInput
+Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
+$account_to_create_name = $LambdaInput.AccountName
+$account_to_create_email = $LambdaInput.Email
+$account_to_create_billing = $LambdaInput.IamUserAccessToBilling
+$account_to_create_role = $LambdaInput.RoleName
+
 Write-Host "Creating a new AWS Account...."
 Write-Host "------------------------------"
-Write-Host ""
-Write-Host $account_to_create
+Write-Host "App ID:" $app_id
+Write-Host "Account Name:" $account_to_create_name
+Write-Host "Account Email:" $account_to_create_email
 Write-Host ""
 
 Try {
-    $create_account = New-ORGAccount -AccountName $account_to_create.AccountName -Email $account_to_create.Email -IamUserAccessToBilling $account_to_create.IamUserAccessToBilling -RoleName $account_to_create.RoleName -Region us-east-2
+    $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region us-east-2
 
     $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
 
     Do {
-        Write-Host "Waiting for account to finish creating...."
+        Write-Host "$(Get-TimeStamp) - Waiting for account to finish creating...."
         Start-Sleep -Seconds 1
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
             $new_account = Get-ORGAccount -region us-east-2 -AccountId $check_status.AccountId
-            Write-Host "---- Account Creation Successful ----"
+            Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
             Write-Host "Account ID:    " $new_account.Id
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
@@ -357,7 +376,7 @@ Try {
             post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
-            Write-Host "---- Account Creation Failed ----"
+            Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
             Write-Host "Failure Reason: Email Address is in use by another account in the Organization. Needs to be unique."
             Write-Host "Request ID:    " $check_status.Id
             Write-Host "Request Time:  " $check_status.RequestedTimestamp
