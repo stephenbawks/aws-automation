@@ -24,7 +24,7 @@ function Get-TimeStamp {
     # function to attach a timestamp to the logs
     # mainly for troubleshooting
     return "[{0:MM/dd/yy} {0:HH:mm:ss}]" -f (Get-Date)
-    
+
 }
 
 
@@ -138,6 +138,112 @@ function add_account_to_redlock {
 
 
 }
+
+
+
+function create_org_ou {
+
+    <#
+    .SYNOPSIS
+        Attempts to create a new organization ou.
+    .DESCRIPTION
+        Some Description goes here
+        https://docs.aws.amazon.com/powershell/latest/reference/Index.html
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $release_train
+    )
+
+    # Write-Host "Checking to see if Parent OU exists...."
+    # $org_root = (Get-ORGRoot -Region 'us-east-2')
+    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
+
+    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
+
+    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
+
+
+
+}
+
+
+
+function setup_guard_duty {
+
+    <#
+    .SYNOPSIS
+        Attempts to create a new organization ou.
+    .DESCRIPTION
+        Some Description goes here
+        https://docs.aws.amazon.com/powershell/latest/reference/Index.html
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $release_train
+    )
+
+    # Write-Host "Checking to see if Parent OU exists...."
+    # $org_root = (Get-ORGRoot -Region 'us-east-2')
+    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
+
+    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
+
+    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
+
+
+
+}
+
+
+function delete_default_vpc {
+
+    <#
+    .SYNOPSIS
+        Attempts to create a new organization ou.
+    .DESCRIPTION
+        Some Description goes here
+        https://docs.aws.amazon.com/powershell/latest/reference/Index.html
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $account_alias,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $release_train
+    )
+
+    # Write-Host "Checking to see if Parent OU exists...."
+    # $org_root = (Get-ORGRoot -Region 'us-east-2')
+    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
+
+    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
+
+    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
+
+
+
+}
+
+
+
+
+
 
 
 
@@ -324,7 +430,7 @@ function add_account_to_grafana {
 .SYNOPSIS
     Creates a new AWS Account in an Organization
 .DESCRIPTION
-    This will attempt to create a new account.  Kicks off the process by 
+    This will attempt to create a new account.  Kicks off the process by
     creating a new account.  After the account is created it will then
     run numerous functions that all provide additional value.
 #>
