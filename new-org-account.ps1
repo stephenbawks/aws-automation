@@ -188,21 +188,27 @@ function setup_guard_duty {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $account_alias,
+        [string] $org_role_name,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $new_account_id,
-        [Parameter(Mandatory = $true, Position = 2)]
-        [string] $release_train
+        [string] $new_account_id
     )
 
     # Write-Host "Checking to see if Parent OU exists...."
-    # $org_root = (Get-ORGRoot -Region 'us-east-2')
-    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
 
-    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
+    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
+    $detector_id = "3eb6b2bf5301fe24f8501dc3153ee838"
 
-    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
+    $invite = @(
+        @{
+            AccountId  = $new_account_id
+            Email = $process
+        }
+    )
 
+    New-GDMember -AccountDetail ($invite | ConvertTo-Json) -DetectorId $detector_id
+
+    # $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
+    # $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
 
 }
@@ -244,7 +250,7 @@ function delete_default_vpc {
     $regions = Get-AWSRegion
 
     $region | ForEach-Object -Process {
-        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" } | Select-Object -Property VpcId,CidrBlock
+        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true"} | Select-Object -Property VpcId,CidrBlock
         $vpc
     }
 
