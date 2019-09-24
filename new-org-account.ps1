@@ -241,9 +241,12 @@ function delete_default_vpc {
     $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
-    $vpc = Get-EC2Vpc -Region us-east-2 -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
+    $regions = Get-AWSRegion
 
-    $vpc
+    $region | ForEach-Object -Process {
+        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" } | Select-Object -Property VpcId,CidrBlock
+        $vpc
+    }
 
 }
 
