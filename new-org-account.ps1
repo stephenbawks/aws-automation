@@ -192,7 +192,9 @@ function setup_guard_duty {
         [Parameter(Mandatory = $true, Position = 0)]
         [string] $org_role_name,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $new_account_id
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $email_address
     )
 
     # Write-Host "Checking to see if Parent OU exists...."
@@ -200,20 +202,34 @@ function setup_guard_duty {
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
     $detector_id = "3eb6b2bf5301fe24f8501dc3153ee838"
 
+    # $AccountDetails = @{
+    #     AccountId = "648242967050"
+    #     Email     = "paulwiles@quickenloans.com"
+    # }
+
+    $us_regions = "us-east-2","us-east-1","us-west-1","us-west-2"
     $AccountDetails = @{
-        AccountId = "648242967050"
-        Email     = "paulwiles@quickenloans.com "
+        AccountId = $new_account_id
+        Email     = $email_address
     }
 
-    New-GDMember -AccountDetail $AccountDetails -DetectorId $detector_id -ProfileName testorganization -Region us-east-2
+    $us_regions | ForEach-Object -Process {
+        New-GDMember -AccountDetail $AccountDetails -DetectorId $detector_id -Region $_ -ProfileName testorganization
+        Send-GDMemberInvitation -AccountId $new_account_id -DetectorId $detector_id -DisableEmailNotification $true -Region $_ -ProfileName testorganization
 
-    Send-GDMemberInvitation -AccountId $new_account_id -DetectorId $detector_id -DisableEmailNotification $true -ProfileName testorganization -Region us-east-2
+        $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole" -Region $_ -ProfileName testorganization).Credentials
+        $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
-    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+        # this creates a detector in the child/member account.  there needs to be
+        # a detector before you can accept an invitiation
+        $member_detector = New-GDDetector -Enable $true -Credential $Credentials -Region $_
 
-    Confirm-GDInvitation -DetectorId <String> -InvitationId <String> -MasterId <String>
+        # this will retrieve the inivitiation from the master account
+        $invite = Get-GDInvitationList -Credential $Credentials -Region $_
 
+        # will confirm the invit
+        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $Credentials -Region $_
+    }
 
 }
 
