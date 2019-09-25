@@ -214,7 +214,6 @@ function setup_guard_duty {
         Email     = $email_address
     }
 
-    #these need to be updated
     $regions = @(
         @{
             "region" = "us-east-2"
