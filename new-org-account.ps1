@@ -207,28 +207,49 @@ function setup_guard_duty {
     #     Email     = "paulwiles@quickenloans.com"
     # }
 
-    $us_regions = "us-east-2","us-east-1","us-west-1","us-west-2"
+    # $us_regions = "us-east-2","us-east-1","us-west-1","us-west-2"
+
     $AccountDetails = @{
         AccountId = $new_account_id
         Email     = $email_address
     }
 
-    $us_regions | ForEach-Object -Process {
-        New-GDMember -AccountDetail $AccountDetails -DetectorId $detector_id -Region $_ -ProfileName testorganization
-        Send-GDMemberInvitation -AccountId $new_account_id -DetectorId $detector_id -DisableEmailNotification $true -Region $_ -ProfileName testorganization
+    #these need to be updated
+    $regions = @(
+        @{
+            "region" = "us-east-2"
+            "detectorid" = "acb0ea346465917edef83687b7dfe06d"
+        },
+        @{
+            "region"    = "us-east-1"
+            "detectorid" = "0cb0f0c874d250b10e1dcee4cd168ffa"
+        },
+        @{
+            "region"    = "us-west-2"
+            "detectorid" = "deb0f1128a7c3e07e95961c01fa4c60e"
+        },
+        @{
+            "region"    = "us-west-1"
+            "detectorid" = "f4b100fe156d7207770c7bcc3268c3d5"
+        }
+    )
 
-        $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole" -Region $_ -ProfileName testorganization).Credentials
+    $regions | ForEach-Object -Process {
+        New-GDMember -AccountDetail $AccountDetails -Region $_.regions -DetectorId $_.detectorid -ProfileName testorganization
+        Send-GDMemberInvitation -AccountId $new_account_id -Region $_.regions -DetectorId $_.detectorid -DisableEmailNotification $true -ProfileName testorganization
+
+        $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole" -Region $_.regions -ProfileName testorganization).Credentials
         $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
         # this creates a detector in the child/member account.  there needs to be
         # a detector before you can accept an invitiation
-        $member_detector = New-GDDetector -Enable $true -Credential $Credentials -Region $_
+        $member_detector = New-GDDetector -Enable $true -Credential $Credentials -Region $_.regions
 
         # this will retrieve the inivitiation from the master account
-        $invite = Get-GDInvitationList -Credential $Credentials -Region $_
+        $invite = Get-GDInvitationList -Credential $Credentials -Region $_.regions
 
         # will confirm the invit
-        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $Credentials -Region $_
+        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $Credentials -Region $_.regions
     }
 
 }
