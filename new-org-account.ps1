@@ -400,9 +400,6 @@ function update_account_alias {
 
 
 
-
-
-
 function update_saml_identity_provider {
 
     <#
