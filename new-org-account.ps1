@@ -258,9 +258,13 @@ function delete_default_vpc {
 
     <#
     .SYNOPSIS
-        Attempts to create a new organization ou.
+        Checks for Default VPCs in all regions.
     .DESCRIPTION
-        Some Description goes here
+        If there are default VPCs, this function will attempt to remove them.  It will first
+        grab all the VPCs.  It will then pull any InternetGateways attached to those VPCs as 
+        well as any subnets.  It will them attempt to detach and remove the Internet Gateways
+        and then remove the subnets as well from the VPC.  Once those have all been removed
+        it will then remove the default VPC.  It does this for all the regions.
         https://docs.aws.amazon.com/powershell/latest/reference/Index.html
     #>
 
@@ -271,14 +275,6 @@ function delete_default_vpc {
         [Parameter(Mandatory = $true, Position = 1)]
         [string] $new_account_id
     )
-
-    # Write-Host "Checking to see if Parent OU exists...."
-    # $org_root = (Get-ORGRoot -Region 'us-east-2')
-    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
-
-    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
-
-    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
 
     Write-Host "Checking the current VPC's...."
 
