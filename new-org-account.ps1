@@ -290,8 +290,14 @@ function delete_default_vpc {
     $regions = Get-AWSRegion
 
     $region | ForEach-Object -Process {
-        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true"} #| Select-Object -Property VpcId,CidrBlock
-        # Write-Host $vpc $_.Region
+        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
+        $igw = Get-EC2InternetGateway -Region $_.Region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
+        Dismount-EC2InternetGateway -Region $_.Region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
+        Remove-EC2InternetGateway -Region $_.Region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId
+
+        $subnets = Get-EC2Subnet -Region $_.Region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
+        Remove-EC2Subnet -Region $_.Region -Credential $Credentials -SubnetId $subnets.SubnetId
+
         Remove-EC2Vpc -VpcId $vpc.VpcId -Region $_.Region -Credential $Credentials -WhatIf
         # $vpc | ForEach-Object -Process {
         #     Remove-EC2Vpc -VpcId $_.VpcId -Region $_.Region -Credential $Credentials -WhatIf
