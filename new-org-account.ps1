@@ -316,9 +316,6 @@ function delete_default_vpc {
 
         Remove-EC2Vpc -VpcId $vpc.VpcId -Region $_.Region -Credential $Credentials -WhatIf
     }
-
-
-
 }
 
 
