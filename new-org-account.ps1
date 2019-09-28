@@ -174,7 +174,6 @@ function create_org_ou {
 }
 
 
-
 function setup_guard_duty {
 
     <#
