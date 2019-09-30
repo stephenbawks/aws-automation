@@ -170,9 +170,7 @@ function create_org_ou {
     # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
 
 
-
 }
-
 
 
 function setup_guard_duty {
@@ -216,19 +214,19 @@ function setup_guard_duty {
 
     $regions = @(
         @{
-            "region" = "us-east-2"
+            "region"     = "us-east-2"
             "detectorid" = "acb0ea346465917edef83687b7dfe06d"
         },
         @{
-            "region"    = "us-east-1"
+            "region"     = "us-east-1"
             "detectorid" = "0cb0f0c874d250b10e1dcee4cd168ffa"
         },
         @{
-            "region"    = "us-west-2"
+            "region"     = "us-west-2"
             "detectorid" = "deb0f1128a7c3e07e95961c01fa4c60e"
         },
         @{
-            "region"    = "us-west-1"
+            "region"     = "us-west-1"
             "detectorid" = "f4b100fe156d7207770c7bcc3268c3d5"
         }
     )
@@ -258,9 +256,13 @@ function delete_default_vpc {
 
     <#
     .SYNOPSIS
-        Attempts to create a new organization ou.
+        Checks for Default VPCs in all regions.
     .DESCRIPTION
-        Some Description goes here
+        If there are default VPCs, this function will attempt to remove them.  It will first
+        grab all the VPCs.  It will then pull any InternetGateways attached to those VPCs as 
+        well as any subnets.  It will them attempt to detach and remove the Internet Gateways
+        and then remove the subnets as well from the VPC.  Once those have all been removed
+        it will then remove the default VPC.  It does this for all the regions.
         https://docs.aws.amazon.com/powershell/latest/reference/Index.html
     #>
 
@@ -272,14 +274,6 @@ function delete_default_vpc {
         [string] $new_account_id
     )
 
-    # Write-Host "Checking to see if Parent OU exists...."
-    # $org_root = (Get-ORGRoot -Region 'us-east-2')
-    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
-
-    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
-
-    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
-
     Write-Host "Checking the current VPC's...."
 
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
@@ -290,30 +284,37 @@ function delete_default_vpc {
     $regions = Get-AWSRegion
 
     $region | ForEach-Object -Process {
+        Write-Host "-------------------------"
+        Write-Host "Checking for Default VPCs"
+        Write-Host "-------------------------"
         $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
-        $igw = Get-EC2InternetGateway -Region $_.Region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
-        Dismount-EC2InternetGateway -Region $_.Region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
-        Remove-EC2InternetGateway -Region $_.Region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId
+        Write-Host "There are" ($vpc).count "Default VPCs in the Account"
 
-        $subnets = Get-EC2Subnet -Region $_.Region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
-        Remove-EC2Subnet -Region $_.Region -Credential $Credentials -SubnetId $subnets.SubnetId
+        if ($vpc.count -eq 0) {
+            Write-Host "There are no Default VPCs in" $_.Region
+        }
+        elseif ($vpc.count -gt 0) {
+            $igw = Get-EC2InternetGateway -Region $_.Region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
+            if ($igw) {
+                Write-Host "---------------------------------------------------------------"
+                Write-Host "Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId
+                Write-Host "---------------------------------------------------------------"
+                Dismount-EC2InternetGateway -Region $_.Region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
+                Remove-EC2InternetGateway -Region $_.Region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId
+            }
+
+            $subnets = Get-EC2Subnet -Region $_.Region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
+            if ($subnets) {
+                Write-Host "---------------------------------------------"
+                Write-Host "Removing Subnets from Default VPC" $vpc.VpcId
+                Write-Host "---------------------------------------------"
+                Remove-EC2Subnet -Region $_.Region -Credential $Credentials -SubnetId $subnets.SubnetId
+            }
+        }
 
         Remove-EC2Vpc -VpcId $vpc.VpcId -Region $_.Region -Credential $Credentials -WhatIf
-        # $vpc | ForEach-Object -Process {
-        #     Remove-EC2Vpc -VpcId $_.VpcId -Region $_.Region -Credential $Credentials -WhatIf
-        # }
     }
-
-
-
 }
-
-
-
-
-
-
-
 
 
 function update_account_alias {
@@ -394,9 +395,6 @@ function update_account_alias {
     }
 
 }
-
-
-
 
 
 
