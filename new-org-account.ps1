@@ -259,7 +259,7 @@ function delete_default_vpc {
         Checks for Default VPCs in all regions.
     .DESCRIPTION
         If there are default VPCs, this function will attempt to remove them.  It will first
-        grab all the VPCs.  It will then pull any InternetGateways attached to those VPCs as 
+        grab all the VPCs.  It will then pull any InternetGateways attached to those VPCs as
         well as any subnets.  It will them attempt to detach and remove the Internet Gateways
         and then remove the subnets as well from the VPC.  Once those have all been removed
         it will then remove the default VPC.  It does this for all the regions.
@@ -283,38 +283,79 @@ function delete_default_vpc {
 
     $regions = Get-AWSRegion
 
-    $region | ForEach-Object -Process {
-        Write-Host "-------------------------"
-        Write-Host "Checking for Default VPCs"
-        Write-Host "-------------------------"
-        $vpc = Get-EC2Vpc -Region $_.Region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
-        Write-Host "There are" ($vpc).count "Default VPCs in the Account"
+    $regions | ForEach-Object -Process {
+        $current_region = $_.Region
+        $current_account = Get-STSCallerIdentity -Credential $Credentials -Region $_.Region
+        Write-Host "----------------------------------------------"
+        Write-Host "Checking for Default VPCs in" $regions.count "regions."
+        Write-Host "Current Account:" $current_account.Account
+        Write-Host "Current Region:" $current_region
+        Write-Host "----------------------------------------------"
+        $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
+        # Write-Host "There are" ($vpc).count "Default VPCs in the Account"
 
         if ($vpc.count -eq 0) {
-            Write-Host "There are no Default VPCs in" $_.Region
+            Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
         }
         elseif ($vpc.count -gt 0) {
-            $igw = Get-EC2InternetGateway -Region $_.Region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
+            $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
             if ($igw) {
-                Write-Host "---------------------------------------------------------------"
-                Write-Host "Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId
-                Write-Host "---------------------------------------------------------------"
-                Dismount-EC2InternetGateway -Region $_.Region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
-                Remove-EC2InternetGateway -Region $_.Region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId
+                Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
+                # Start-Sleep -Seconds 10
+                Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
+                    if ($? -eq $true) {
+                        Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
+                    }
+                    elseif ($? -eq $false) {
+                        Write-Host " --- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
+                    }
+                Write-Host " --- Attempting to remove " $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
+                Remove-EC2InternetGateway -Region $current_region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId -Force
+                    if ($? -eq $true) {
+                        Write-Host " --- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
+                    }
+                    elseif ($? -eq $false) {
+                        Write-Host " --- Failed to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
+                    }
+            }
+            elseif ($igw -eq $null) {
+                Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
             }
 
-            $subnets = Get-EC2Subnet -Region $_.Region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
+            $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
             if ($subnets) {
-                Write-Host "---------------------------------------------"
-                Write-Host "Removing Subnets from Default VPC" $vpc.VpcId
-                Write-Host "---------------------------------------------"
-                Remove-EC2Subnet -Region $_.Region -Credential $Credentials -SubnetId $subnets.SubnetId
+                Write-Host ""
+                Write-Host " --- Attempting to remove subnets from Default VPC" $vpc.VpcId -ForegroundColor Yellow
+                $subnets | ForEach-Object -Process {
+                    # Write-Host $current_region
+                    Write-Host " --- Removing Subnet:" $_.SubnetId -ForegroundColor Red
+                    Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $Credentials -Force
+                    if ($? -eq $true) {
+                        Write-Host " --- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
+                    }
+                    elseif ($? -eq $false) {
+                        Write-Host " --- Failed to remove" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Red
+                    }
+                }
             }
+            elseif ($subnets -eq $null) {
+                Write-Host " --- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
+            }
+
+            Write-Host " --- Attempting to remove Default VPC" $vpc.VpcId -ForegroundColor Yellow
+            Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $Credentials -Force
+                if ($? -eq $true) {
+                    Write-Host " --- Succesfully removed Default VPC" $vpc.VpcId -ForegroundColor Green
+                }
+                elseif ($? -eq $false) {
+                    Write-Host " --- Failed to remove Default VPC" $vpc.VpcId -ForegroundColor Red
+                }
+
         }
 
-        Remove-EC2Vpc -VpcId $vpc.VpcId -Region $_.Region -Credential $Credentials -WhatIf
     }
 }
+
 
 
 function update_account_alias {
@@ -549,6 +590,7 @@ Try {
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
 
+            # New-ASACase -Subject "New Account - Enterprise Support" -IssueType "customer-service"
             $new_account_id = "Account Number: " + $new_account.Id
             # post message to teams channel on success
             post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
