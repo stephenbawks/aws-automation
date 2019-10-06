@@ -619,7 +619,8 @@ Try {
             post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
             add_account_ent_support -new_account_id $new_account_id
             add_account_to_grafana -new_account_id $new_account.Id -account_name $new_account_name_modified
-            update_account_alias -account_alias $new_account_name_modified -new_account_id $new_account.Id -org_role_name $account_to_create_rolee
+            update_account_alias -account_alias $new_account_name_modified -new_account_id $new_account.Id -org_role_name $account_to_create_role
+            update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $account_to_create_role
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
