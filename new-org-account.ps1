@@ -615,10 +615,10 @@ Try {
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
 
-            # New-ASACase -Subject "New Account - Enterprise Support" -IssueType "customer-service"
             $new_account_id = "Account Number: " + $new_account.Id
             # post message to teams channel on success
             post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
+            add_account_ent_support -new_account_id $new_account_id
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
