@@ -145,7 +145,10 @@ function add_account_ent_support {
     .SYNOPSIS
         Creates a AWS Support Case to add account to our Enterprise Support.
     .DESCRIPTION
-        Some Description goes here
+        Creates a support case to add to your enterprise support agreement.
+        This has to run in us-east-1 region as it is considered a global service and only has one
+        endpoint and that is us-east-1.  Creates the case and is using a Teams email address for
+        general notifications.
         https://docs.aws.amazon.com/powershell/latest/reference/Index.html
     #>
 
@@ -156,7 +159,6 @@ function add_account_ent_support {
     )
 
     New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress "95700483.Rockfin.onmicrosoft.com@amer.teams.ms" -Region "us-east-1"
-
 
 }
 
