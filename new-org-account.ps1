@@ -139,6 +139,29 @@ function add_account_to_redlock {
 
 }
 
+function add_account_ent_support {
+
+    <#
+    .SYNOPSIS
+        Creates a AWS Support Case to add account to our Enterprise Support.
+    .DESCRIPTION
+        Some Description goes here
+        https://docs.aws.amazon.com/powershell/latest/reference/Index.html
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $new_account_id
+    )
+
+    New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress "95700483.Rockfin.onmicrosoft.com@amer.teams.ms" -Region "us-east-1"
+
+
+}
+
+
+
 
 
 function create_org_ou {
