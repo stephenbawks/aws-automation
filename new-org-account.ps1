@@ -105,16 +105,20 @@ function create_stackset_exec_role {
 
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
+    $org_account_id = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/org_account_id").Parameters
+
+    $role_tags = @( @{key = "app-id"; value = "James" }, @{key = "product-id"; value = "Solutions Architecture" }, @{key = "iac"; value = "cloudformation" } )
+
     $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
     $stackset_role_name = "AWSCloudFormationStackSetExecutionRole"
     $stackset_role_desc = "Stack Set Role to push StackSets from the Org"
-    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::686334881896:root"},"Action":"sts:AssumeRole"}]}'
+    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::' + $org_account_id + ':role/AWSCloudFormationStackSetExecutionRole"},"Action":"sts:AssumeRole"}]}'
 
-    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -ProfileName testorganization
+    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -Tag $role_tags -Credential $Credentials -ProfileName testorganization
 
-    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -ProfileName testorganization
+    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -Credential $Credentials -ProfileName testorganization
 }
 
 
