@@ -86,6 +86,78 @@ function post_to_teams {
 }
 
 
+function create_stackset_exec_role {
+
+    <#
+    .SYNOPSIS
+        Adds the StackSet Execution Role.
+    .DESCRIPTION
+        This is the role that is requires for StackSets to assume into the account from the top account that holds these stack sets.
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $org_role_name,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $new_account_id
+    )
+
+    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
+
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
+    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+
+    $stackset_role_name = "AWSCloudFormationStackSetExecutionRole"
+    $stackset_role_desc = "Stack Set Role to push StackSets from the Org"
+    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::686334881896:root"},"Action":"sts:AssumeRole"}]}'
+
+    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -ProfileName testorganization
+
+    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -ProfileName testorganization
+}
+
+
+function add_account_stackset {
+
+    <#
+    .SYNOPSIS
+        Attempts to add the new aws account to HAL
+    .DESCRIPTION
+        Some Description goes here
+    #>
+
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $environment
+    )
+
+    # Grab accounts in a particular StackSet
+    $base_roles_stackset = Get-CFNStackInstanceList -StackSetName "base-account-role-policy-$environment" -StackInstanceRegion "us-east-2"
+    # Check to see if the new account exists in the array
+    if ($base_roles_stackset.Account -contains $new_account_id) {
+        Write-Host "Account $new_account_id is already in the Base Account Roles StackSet."
+    }
+    elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
+        Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added."
+    }
+
+    $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment"
+    # Check to see if the new account exists in the array
+    $aws_hal_stackset_regions = "us-east-2", "us-east-1", "us-west-2", "us-west-1"
+    $aws_hal_stackset_regions | ForEach-Object -Process {
+        if ($aws_hal_stackset.Account -contains $new_account_id -and $aws_hal_stackset.Region -eq $_) {
+            Write-Host "Account $new_account_id is already in the Base Account Roles StackSet."
+        }
+        elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
+            Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added."
+        }
+    }
+
+}
 
 
 function add_account_to_hal {
@@ -174,23 +246,8 @@ function create_org_ou {
         https://docs.aws.amazon.com/powershell/latest/reference/Index.html
     #>
 
-    Param
-    (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string] $account_alias,
-        [Parameter(Mandatory = $true, Position = 1)]
-        [string] $new_account_id,
-        [Parameter(Mandatory = $true, Position = 2)]
-        [string] $release_train
-    )
 
-    # Write-Host "Checking to see if Parent OU exists...."
-    # $org_root = (Get-ORGRoot -Region 'us-east-2')
-    # Get-ORGOrganizationalUnitList -ParentId $org_root.id -Region 'us-east-2'
 
-    # Get-ORGOrganizationalUnit -OrganizationalUnitId <String> -Region 'us-east-2'
-
-    # New-ORGOrganizationalUnit -Name <String> -ParentId $release_train -Force <SwitchParameter>
 
 
 }
@@ -607,6 +664,9 @@ Try {
         Start-Sleep -Seconds 1
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
+
+            Add-ORGResourceTag -ResourceId <String>-Tag <Tag[]>-PassThru <SwitchParameter>-Force <SwitchParameter>
+
             $new_account = Get-ORGAccount -region us-east-2 -AccountId $check_status.AccountId
             Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
             Write-Host "Account ID:    " $new_account.Id
