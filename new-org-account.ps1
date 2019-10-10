@@ -145,7 +145,7 @@ function add_account_stackset {
     if ($base_roles_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Roles StackSet. Nothing to do here."
     } elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
-        Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added."
+        Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
         Update-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
     }
@@ -159,7 +159,7 @@ function add_account_stackset {
         if ($aws_hal_stackset.Account -contains $new_account_id -and $aws_hal_stackset.Region -eq $_) {
             Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
         } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
-            Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added."
+            Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
             New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
             Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
         }
