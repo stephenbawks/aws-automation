@@ -663,9 +663,9 @@ Write-Host "Account Email:" $account_to_create_email
 Write-Host ""
 
 Try {
-    $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region us-east-2
+    $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region "us-east-2"
 
-    $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
+    $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
 
     Do {
         Write-Host "$(Get-TimeStamp) - Waiting for account to finish creating...."
@@ -673,9 +673,10 @@ Try {
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
 
-            Add-ORGResourceTag -ResourceId <String>-Tag <Tag[]>-PassThru <SwitchParameter>-Force <SwitchParameter>
+            $account_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" } )
+            # Add-ORGResourceTag -ResourceId -Tag $account_tags
 
-            $new_account = Get-ORGAccount -region us-east-2 -AccountId $check_status.AccountId
+            $new_account = Get-ORGAccount -region "us-east-2" -AccountId $check_status.AccountId
             Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
             Write-Host "Account ID:    " $new_account.Id
             Write-Host "Account Name:  " $new_account.Name
