@@ -158,10 +158,10 @@ function add_account_stackset {
     $aws_hal_stackset_regions | ForEach-Object -Process {
         if ($aws_hal_stackset.Account -contains $new_account_id -and $aws_hal_stackset.Region -eq $_) {
             Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
-            New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
-            Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
         } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
             Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added."
+            New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
+            Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
         }
     }
 
