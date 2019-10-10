@@ -107,7 +107,7 @@ function create_stackset_exec_role {
 
     $org_account_id = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/org_account_id").Parameters
 
-    $role_tags = @( @{key = "app-id"; value = "James" }, @{key = "product-id"; value = "Solutions Architecture" }, @{key = "iac"; value = "cloudformation" } )
+    $role_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "cloudformation" } )
 
     $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
