@@ -12,7 +12,7 @@
 # To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement
 # indicating the module and version.
 
-#Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.422.0'}
+#Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.590.0'}
 
 # Documentation
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
@@ -155,14 +155,13 @@ function add_account_stackset {
     $aws_hal_stackset_regions = "us-east-2", "us-east-1", "us-west-2", "us-west-1"
     $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}'
 
-    $aws_hal_stackset_regions | ForEach-Object -Process {
-        if ($aws_hal_stackset.Account -contains $new_account_id -and $aws_hal_stackset.Region -eq $_) {
-            Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
-        } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
-            Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
-            New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
-            Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
-        }
+    #need to double check this if statement.  want to make sure that each region is in the stackset for the new account
+    if ($aws_hal_stackset.Account -contains $new_account_id) {
+        Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
+    } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
+        Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
+        New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
+        Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
     }
 
 }
@@ -644,6 +643,8 @@ function add_account_to_grafana {
 # Pulls app_id from the lambda environment variable
 
 $app_id = $ENV:app_id
+
+# $LambdaInput = '{"AccountName":"testnewaccount1","Email":"paulwiles@quickenloans.com","IamUserAccessToBilling":"ALLOW","RoleName":"QLPayerAcctRole"}'
 
 ##################################################################################
 
