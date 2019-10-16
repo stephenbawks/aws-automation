@@ -12,7 +12,7 @@
 # To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement
 # indicating the module and version.
 
-#Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.590.0'}
+#Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
 
 # Documentation
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
@@ -105,20 +105,20 @@ function create_stackset_exec_role {
 
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    $org_account_id = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/org_account_id" –WithDecryption $true).Parameters
+    $org_account_id = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/org_account_id" –WithDecryption $true -profilename prodorganization).Parameters.Value
 
     $role_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "cloudformation" } )
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
     $stackset_role_name = "AWSCloudFormationStackSetExecutionRole"
     $stackset_role_desc = "Stack Set Role to push StackSets from the Org"
-    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::' + $org_account_id + ':role/AWSCloudFormationStackSetExecutionRole"},"Action":"sts:AssumeRole"}]}'
+    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::' + $org_account_id + ':root"},"Action":"sts:AssumeRole"}]}'
 
-    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -Tag $role_tags -Credential $Credentials -ProfileName testorganization
+    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -Tag $role_tags -Credential $Credentials
 
-    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -Credential $Credentials -ProfileName testorganization
+    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -Credential $Credentials
 }
 
 
@@ -140,17 +140,17 @@ function add_account_stackset {
     )
 
     # Grab accounts in a particular StackSet
-    $base_roles_stackset = Get-CFNStackInstanceList -StackSetName "base-account-role-policy-$environment" -StackInstanceRegion "us-east-2"
+    $base_roles_stackset = Get-CFNStackInstanceList -StackSetName "base-account-role-policy-$environment" -Region "us-east-1" -profilename prodorganization
     # Check to see if the new account exists in the array
     if ($base_roles_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Roles StackSet. Nothing to do here."
     } elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
-        New-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
-        Update-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
+        New-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1" -ProfileName prodorganization
+        # Update-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
     }
 
-    $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment"
+    $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment" -Region "us-east-1" -profilename prodorganization
     # Check to see if the new account exists in the array
     $aws_hal_stackset_regions = "us-east-2", "us-east-1", "us-west-2", "us-west-1"
     $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}'
@@ -160,8 +160,8 @@ function add_account_stackset {
         Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
     } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
-        New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -ProfileName testorganization
-        Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
+        New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -Region "us-east-1" -ProfileName prodorganization
+        # Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
     }
 
 }
@@ -491,8 +491,7 @@ function update_account_alias {
             Write-Host "---------------------------------------------------------------------"
             Write-Host ""
         }
-    }
-    elseif ($current_account_alias -eq $account_alias) {
+    } elseif ($current_account_alias -eq $account_alias) {
         # current iam account alias is already set up to match
         Write-Host "----------------------------------------------"
         Write-Host "IAM Account is already correct. Nothing to do."
@@ -543,8 +542,7 @@ function update_saml_identity_provider {
         [string] $org_role_name
     )
 
-    $saml_64 = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/saml_64" –WithDecryption $true).Parameters
-    # $saml_64 = "PG1kOkVudGl0eURlc2NyaXB0b3IgSUQ9IlZjd3pWaFJJY2REMmZrdGl4aFh1N1hISk92RyIgY2FjaGVEdXJhdGlvbj0iUFQxNDQwTSIgZW50aXR5SUQ9Imh0dHBzOi8vc3NvLnJvY2tmaW4uY29tIiB4bWxuczptZD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOm1ldGFkYXRhIj48bWQ6SURQU1NPRGVzY3JpcHRvciBwcm90b2NvbFN1cHBvcnRFbnVtZXJhdGlvbj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIiBXYW50QXV0aG5SZXF1ZXN0c1NpZ25lZD0iZmFsc2UiPjxtZDpLZXlEZXNjcmlwdG9yIHVzZT0ic2lnbmluZyI+PGRzOktleUluZm8geG1sbnM6ZHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyMiPjxkczpYNTA5RGF0YT48ZHM6WDUwOUNlcnRpZmljYXRlPk1JSUM1RENDQWN5Z0F3SUJBZ0lHQVV0NTQ0bmNNQTBHQ1NxR1NJYjNEUUVCQlFVQU1ETXhDekFKQmdOVkJBWVRBbFZUTVJZd0ZBWURWUVFLRXcxUmRXbGphMlZ1SUV4dllXNXpNUXd3Q2dZRFZRUURFd05CVjFNd0hoY05NVFV3TWpFeE1UZ3lOVE13V2hjTk1qQXdNakV3TVRneU5UTXdXakF6TVFzd0NRWURWUVFHRXdKVlV6RVdNQlFHQTFVRUNoTU5VWFZwWTJ0bGJpQk1iMkZ1Y3pFTU1Bb0dBMVVFQXhNRFFWZFRNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQW1wYW9Tb1VXd0ZrZklmUnA3cWxsUTFnNkd3NHFKNXNFQW54RTZ1QkJaelU3c3ltSndscjhKVk1wSlJ1RHAzQU5GTzBmZGZVdGM4bnUxdWVUb2NrQzVkb2FVeEY0c2lUS3dOL1BFNkl6S21aa1BMWDNuVW5hN0M3Ymx6anNvdjc5bHhOUElJZ09rdXBUMldiRk52dUtOUGRhaytJUVBkZno3M1daV0g5dHVXbDZjNHRZZ1B3VGVCNFJ0am1JY3FNSWxEeGhVd2tzY1llcHNkb01BbUkxYUZoOHNZK2Uwd2hQK1dQQlVlOWpRWjl3b2wwK2FxbjcvWFRxL3plOXRpZUVjZzEvZVltalZoR0RPS2k3WU56VGtuRzdSWWJPem9WTEg0MW12U2hMYUc5Wm1nMnNYdW1hMzdqdUxWOHd2VXJrblpsSC81UGE0c3F1Y0ZkRThmMDBYd0lEQVFBQk1BMEdDU3FHU0liM0RRRUJCUVVBQTRJQkFRQWtCd2pETFY1RzExZ2ZqQ1U1N2NyUERBanAwc0VuZGV2ZTRlTms5NFNwbldhcmxMVE9PcHNUc29pWWtPdU9OMEg1Vk1OSXpVeVJiNE5kWDJoWHhaSGRhODh0NXlxYXFmbTJLVWFEaWtqR1c5TzlHeFMxK0tlSGRicVZBbnhxZE9leXdjSjZzS3MzMVRsU1NuTWRQT0UrdDY5L1ZQa2g5TVU5OFBFdmM1ZlNhS1lyM0xFS2kxNXBEanlKNGliMHRudVA4c2xkcWh5eStaalVGUERra3R6T2I3Q2lFOHl0bkNhdzhZM0VxS3ZkRXErOUtJTzBYMmJ1QTlSVHhJMzNENGpqYTlqVGpVdkJLbGN1RlB4TlV1ZWUvYTFBdDVxZHlpZWlDQ2xRZk5wZGw3S1ZoekRVaitxMUwxSnJpUmhBR2tBdHhaVENwS0xvdUl6U0N3MElwQkNiPC9kczpYNTA5Q2VydGlmaWNhdGU+PC9kczpYNTA5RGF0YT48L2RzOktleUluZm8+PC9tZDpLZXlEZXNjcmlwdG9yPjxtZDpOYW1lSURGb3JtYXQ+dXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6MS4xOm5hbWVpZC1mb3JtYXQ6dW5zcGVjaWZpZWQ8L21kOk5hbWVJREZvcm1hdD48bWQ6U2luZ2xlU2lnbk9uU2VydmljZSBCaW5kaW5nPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YmluZGluZ3M6SFRUUC1QT1NUIiBMb2NhdGlvbj0iaHR0cHM6Ly9zc28ucm9ja2Zpbi5jb20vaWRwL1NTTy5zYW1sMiIvPjxtZDpTaW5nbGVTaWduT25TZXJ2aWNlIEJpbmRpbmc9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpiaW5kaW5nczpIVFRQLVJlZGlyZWN0IiBMb2NhdGlvbj0iaHR0cHM6Ly9zc28ucm9ja2Zpbi5jb20vaWRwL1NTTy5zYW1sMiIvPjxzYW1sOkF0dHJpYnV0ZSBOYW1lPSJodHRwczovL2F3cy5hbWF6b24uY29tL1NBTUwvQXR0cmlidXRlcy9Sb2xlU2Vzc2lvbk5hbWUiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6YmFzaWMiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphc3NlcnRpb24iLz48c2FtbDpBdHRyaWJ1dGUgTmFtZT0iaHR0cHM6Ly9hd3MuYW1hem9uLmNvbS9TQU1ML0F0dHJpYnV0ZXMvUm9sZSIgTmFtZUZvcm1hdD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmF0dHJuYW1lLWZvcm1hdDpiYXNpYyIgeG1sbnM6c2FtbD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiIvPjwvbWQ6SURQU1NPRGVzY3JpcHRvcj48bWQ6Q29udGFjdFBlcnNvbiBjb250YWN0VHlwZT0iYWRtaW5pc3RyYXRpdmUiPjxtZDpDb21wYW55PlF1aWNrZW4gTG9hbnM8L21kOkNvbXBhbnk+PC9tZDpDb250YWN0UGVyc29uPjwvbWQ6RW50aXR5RGVzY3JpcHRvcj4="
+    $saml_64 = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/saml_64" –WithDecryption $true).Parameters.Value
     $saml = [Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($saml_64))
 
     Write-Host "Checking the current IAM SAML Provider...."
@@ -552,7 +550,7 @@ function update_saml_identity_provider {
     # AWSControlTowerExecution
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials #dont forget to comment out the organiazation profile here
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials #dont forget to comment out the organiazation profile here
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
     Try {
@@ -599,8 +597,8 @@ function add_account_to_grafana {
 
     Write-Host "Attempting to add new AWS account to Grafana...."
 
-    $grafana_url = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_url" –WithDecryption $true).Parameters
-    $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_token" –WithDecryption $true).Parameters
+    $grafana_url = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_url" –WithDecryption $true -ProfileName prodorganization).Parameters.Value
+    $grafana_token = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/grafana_token" –WithDecryption $true -ProfileName prodorganization).Parameters.Value
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add('Content-Type', 'application/json')
@@ -644,7 +642,7 @@ function add_account_to_grafana {
 
 $app_id = $ENV:app_id
 
-# $LambdaInput = '{"AccountName":"testnewaccount1","Email":"paulwiles@quickenloans.com","IamUserAccessToBilling":"ALLOW","RoleName":"QLPayerAcctRole"}'
+# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW","RoleName":"QLPayerAcctRole"}'
 
 ##################################################################################
 
@@ -664,9 +662,9 @@ Write-Host "Account Email:" $account_to_create_email
 Write-Host ""
 
 Try {
-    $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region "us-east-2"
+    # $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region "us-east-2"
 
-    $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
+    # $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
 
     Do {
         Write-Host "$(Get-TimeStamp) - Waiting for account to finish creating...."
@@ -674,23 +672,27 @@ Try {
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
 
-            $account_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" } )
-            # Add-ORGResourceTag -ResourceId -Tag $account_tags
-
             $new_account = Get-ORGAccount -region "us-east-2" -AccountId $check_status.AccountId
+            $account_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" } )
+            Add-ORGResourceTag -ResourceId $new_account.Id -Tag $account_tags
+
             Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
             Write-Host "Account ID:    " $new_account.Id
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
 
-            $new_account_id = "Account Number: " + $new_account.Id
-            $new_account_name_modified = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
+            $new_account_id = "Account Number: " + $new_account.Id  # this is just needed for the teams message, need to change the variable name
+
             # post message to teams channel on success
             post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
-            add_account_ent_support -new_account_id $new_account_id
-            add_account_to_grafana -new_account_id $new_account.Id -account_name $new_account_name_modified
-            update_account_alias -account_alias $new_account_name_modified -new_account_id $new_account.Id -org_role_name $account_to_create_role
-            update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $account_to_create_role
+            # add_account_ent_support -new_account_id $new_account.Id
+
+            $grafana_account_format = $account_to_create_name + " (" + $new_account.Id + ")"
+            # add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
+
+            $new_account_name_alias = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
+            # update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $account_to_create_role
+            # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $account_to_create_role
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
