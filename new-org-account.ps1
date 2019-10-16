@@ -153,19 +153,25 @@ function add_account_stackset {
     $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment" -Region "us-east-1" -profilename prodorganization
     # Check to see if the new account exists in the array
     $aws_hal_stackset_regions = "us-east-2", "us-east-1", "us-west-2", "us-west-1"
-    $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}'
+    $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}' | ConvertFrom-Json
 
     #need to double check this if statement.  want to make sure that each region is in the stackset for the new account
     if ($aws_hal_stackset.Account -contains $new_account_id) {
-        Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet."
+        Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet. Nothing to do here."
     } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -Region "us-east-1" -ProfileName prodorganization
         # Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
     }
 
-}
-
+    $aws_cloudtrail_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-cloudtrail-$environment" -Region "us-east-1" -profilename prodorganization
+    if ($aws_cloudtrail_stackset.Account -contains $new_account_id) {
+        Write-Host "Account $new_account_id is already in the Base Account Cloudtrai StackSet. Nothing to do here."
+    }
+    elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
+        Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
+        New-CFNStackInstance -StackSetName "base-account-setup-cloudtrail-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1" -ProfileName prodorganization
+    }
 
 function add_account_to_hal {
 
