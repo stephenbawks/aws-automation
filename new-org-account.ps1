@@ -14,9 +14,12 @@
 
 #Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
 
-# Documentation
+# AWS Documentation
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
 # https://docs.aws.amazon.com/powershell/latest/reference/Index.html
+
+# Powershell Documentation
+# https://www.powershellgallery.com/packages/AWSPowerShell
 
 
 
@@ -35,7 +38,7 @@ function post_to_teams {
         [string] $process,
         [Parameter(Mandatory = $true, Position = 1)]
         [string] $status,
-        [Parameter(Mandatory = $true, Position = 1)]
+        [Parameter(Mandatory = $true, Position = 2)]
         [string] $details
     )
 
