@@ -709,7 +709,7 @@ Try {
             # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
 
             # create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
-            add_account_stackset -new_account_id $new_account.Id -environment $environment
+            # add_account_stackset -new_account_id $new_account.Id -environment $environment
 
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
