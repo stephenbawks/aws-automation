@@ -43,7 +43,7 @@ function post_to_teams {
     # this should be the webhook address that the function will post to
     # disabling for the moment until deployed, testing still
 
-    $uri = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/teams_uri_address" –WithDecryption $true).Parameters
+    $uri = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/teams_uri_address" –WithDecryption $true).Parameters.Value
 
     # these values would be retrieved from or set by an application
     # $status = 'success'
@@ -173,6 +173,8 @@ function add_account_stackset {
         New-CFNStackInstance -StackSetName "base-account-setup-cloudtrail-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1" -ProfileName prodorganization
     }
 
+    $aws_config_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-config-$environment" -Region "us-east-1" -profilename prodorganization
+
 function add_account_to_hal {
 
     <#
@@ -241,7 +243,8 @@ function add_account_ent_support {
         [string] $new_account_id
     )
 
-    New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress "95700483.Rockfin.onmicrosoft.com@amer.teams.ms" -Region "us-east-1"
+    $email_address = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/email_for_notifications" –WithDecryption $true).Parameters.Value
+    New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress $email_address -Region "us-east-1"
 
 }
 
@@ -648,7 +651,7 @@ function add_account_to_grafana {
 
 $app_id = $ENV:app_id
 
-# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW","RoleName":"QLPayerAcctRole"}'
+# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW"}'
 
 ##################################################################################
 
@@ -658,7 +661,9 @@ Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
 $account_to_create_name = $LambdaInput.AccountName
 $account_to_create_email = $LambdaInput.Email
 $account_to_create_billing = $LambdaInput.IamUserAccessToBilling
-$account_to_create_role = $LambdaInput.RoleName
+# $account_to_create_role = $LambdaInput.RoleName
+
+$organization_role = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/organization_role" –WithDecryption $true).Parameters.Value
 
 Write-Host "Creating a new AWS Account...."
 Write-Host "------------------------------"
@@ -668,7 +673,7 @@ Write-Host "Account Email:" $account_to_create_email
 Write-Host ""
 
 Try {
-    # $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $account_to_create_role -Region "us-east-2"
+    # $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $organization_role -Region "us-east-2"
 
     # $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
 
@@ -697,8 +702,12 @@ Try {
             # add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
 
             $new_account_name_alias = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
-            # update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $account_to_create_role
-            # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $account_to_create_role
+            # update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $organization_role
+            # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
+
+            # create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
+            add_account_stackset -new_account_id $new_account.Id -environment $environment
+
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
