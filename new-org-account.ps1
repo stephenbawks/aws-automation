@@ -155,7 +155,7 @@ function add_account_stackset {
 
     $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment" -Region "us-east-1" -profilename prodorganization
     # Check to see if the new account exists in the array
-    $aws_hal_stackset_regions = "us-east-2", "us-east-1", "us-west-2", "us-west-1"
+    $aws_hal_stackset_regions = 'us-east-2','us-east-1','us-west-2','us-west-1'
     $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}' | ConvertFrom-Json
 
     #need to double check this if statement.  want to make sure that each region is in the stackset for the new account
@@ -170,13 +170,23 @@ function add_account_stackset {
     $aws_cloudtrail_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-cloudtrail-$environment" -Region "us-east-1" -profilename prodorganization
     if ($aws_cloudtrail_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Cloudtrai StackSet. Nothing to do here."
-    }
-    elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
+    } elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-cloudtrail-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1" -ProfileName prodorganization
     }
 
-    $aws_config_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-config-$environment" -Region "us-east-1" -profilename prodorganization
+
+    $aws_config_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-aws-config-$environment" -Region "us-east-1" -profilename prodorganization
+
+    $config_regions = "ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1","us-east-1","us-east-2","us-west-1","us-west-2"
+    $config_operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-1","us-west-2","ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1"]}' | ConvertFrom-Json
+    if ($aws_config_stackset.Account -contains $new_account_id) {
+        Write-Host "Account $new_account_id is already in the Base Account Config StackSet. Nothing to do here."
+    } elseif ($aws_config_stackset.Account -notcontains $new_account_id) {
+        Write-Host "Account $new_account_id is not in the Base Account Config StackSet and will be added. Creating Stack Instance."
+        New-CFNStackInstance -StackSetName "base-account-setup-aws-config-$environment" -Account $new_account_id -StackInstanceRegion $config_regions -OperationPreference $config_operation_preference -Region "us-east-1" -ProfileName prodorganization
+    }
+
 
 function add_account_to_hal {
 
@@ -653,7 +663,7 @@ function add_account_to_grafana {
 
 $app_id = $ENV:app_id
 
-# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW"}'
+# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW","Environment":"nonprod"}'
 
 ##################################################################################
 
@@ -663,7 +673,8 @@ Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
 $account_to_create_name = $LambdaInput.AccountName
 $account_to_create_email = $LambdaInput.Email
 $account_to_create_billing = $LambdaInput.IamUserAccessToBilling
-# $account_to_create_role = $LambdaInput.RoleName
+$account_environment = ($LambdaInput.Environment).tolower()
+
 
 $organization_role = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/organization_role" –WithDecryption $true).Parameters.Value
 
@@ -708,7 +719,7 @@ Try {
             # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
 
             # create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
-            # add_account_stackset -new_account_id $new_account.Id -environment $environment
+            # add_account_stackset -new_account_id $new_account.Id -environment $account_environment
 
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
