@@ -310,11 +310,14 @@ function setup_guard_duty {
         Email     = $email_address
     }
 
-    $guard_duty_regions = @(
-        @{
+
+
+            @{
             "region"     = "us-east-2"
             "detectorid" = "acb0ea346465917edef83687b7dfe06d"
         },
+
+    $guard_duty_regions = @(
         @{
             "region"     = "us-east-1"
             "detectorid" = "0cb0f0c874d250b10e1dcee4cd168ffa"
@@ -335,21 +338,26 @@ function setup_guard_duty {
     $account_to_invite_role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
     $guard_duty_role = "arn:aws:iam::" + $guard_duty_regions.guarddutyaccount + ":role/" + $org_role_name
 
+    $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
+    $invite_account_Credentials = New-AWSCredentials -AccessKey $invite_account_Response.AccessKeyId -SecretKey $invite_account_Response.SecretAccessKey -SessionToken $invite_account_Response.SessionToken
+
+    $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
+    $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
+
     $guard_duty_regions | ForEach-Object -Process {
-        $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole" -Region $_.region -ProfileName prodorganization).Credentials
-        $invite_account_Credentials = New-AWSCredentials -AccessKey $invite_account_Response.AccessKeyId -SecretKey $invite_account_Response.SecretAccessKey -SessionToken $invite_account_Response.SessionToken
         # this creates a detector in the child/member account.  there needs to be
         # a detector before you can accept an invitiation
         $member_detector = New-GDDetector -Enable $true -Credential $invite_account_Credentials -Region $_.region
-
-        $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole" -Region $_.region -ProfileName prodorganization).Credentials
-        $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
+        Write-Host "Detector:" $member_detector
+        Write-Host "Region:" $_.region
 
         New-GDMember -AccountDetail $AccountDetails -Region $_.region -DetectorId $_.detectorid -Credential $guard_duty_Credentials
         Send-GDMemberInvitation -AccountId $new_account_id -Region $_.region -DetectorId $_.detectorid -DisableEmailNotification $true -Credential $guard_duty_Credentials
+        Start-Sleep -Seconds 2
 
         # this will retrieve the inivitiation from the master account
         $invite = Get-GDInvitationList -Credential $invite_account_Credentials -Region $_.region
+        Write-Host "Invitation:" $invite
 
         # will confirm the invit
         Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $invite_account_Credentials -Region $_.region
