@@ -304,24 +304,13 @@ function setup_guard_duty {
         [string] $email_address
     )
 
-    # Write-Host "Checking to see if Parent OU exists...."
-
-    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
-    $detector_id = "3eb6b2bf5301fe24f8501dc3153ee838"
-
-    # $AccountDetails = @{
-    #     AccountId = "648242967050"
-    #     Email     = "paulwiles@quickenloans.com"
-    # }
-
-    # $us_regions = "us-east-2","us-east-1","us-west-1","us-west-2"
 
     $AccountDetails = @{
         AccountId = $new_account_id
         Email     = $email_address
     }
 
-    $regions = @(
+    $guard_duty_regions = @(
         @{
             "region"     = "us-east-2"
             "detectorid" = "acb0ea346465917edef83687b7dfe06d"
@@ -337,25 +326,33 @@ function setup_guard_duty {
         @{
             "region"     = "us-west-1"
             "detectorid" = "f4b100fe156d7207770c7bcc3268c3d5"
+        },
+        @{
+            "guarddutyaccount" = "503012327073"
         }
     )
 
-    $regions | ForEach-Object -Process {
-        New-GDMember -AccountDetail $AccountDetails -Region $_.regions -DetectorId $_.detectorid -ProfileName testorganization
-        Send-GDMemberInvitation -AccountId $new_account_id -Region $_.regions -DetectorId $_.detectorid -DisableEmailNotification $true -ProfileName testorganization
+    $account_to_invite_role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
+    $guard_duty_role = "arn:aws:iam::" + $guard_duty_regions.guarddutyaccount + ":role/" + $org_role_name
 
-        $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole" -Region $_.regions -ProfileName testorganization).Credentials
-        $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
-
+    $guard_duty_regions | ForEach-Object -Process {
+        $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole" -Region $_.region -ProfileName prodorganization).Credentials
+        $invite_account_Credentials = New-AWSCredentials -AccessKey $invite_account_Response.AccessKeyId -SecretKey $invite_account_Response.SecretAccessKey -SessionToken $invite_account_Response.SessionToken
         # this creates a detector in the child/member account.  there needs to be
         # a detector before you can accept an invitiation
-        $member_detector = New-GDDetector -Enable $true -Credential $Credentials -Region $_.regions
+        $member_detector = New-GDDetector -Enable $true -Credential $invite_account_Credentials -Region $_.region
+
+        $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole" -Region $_.region -ProfileName prodorganization).Credentials
+        $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
+
+        New-GDMember -AccountDetail $AccountDetails -Region $_.region -DetectorId $_.detectorid -Credential $guard_duty_Credentials
+        Send-GDMemberInvitation -AccountId $new_account_id -Region $_.region -DetectorId $_.detectorid -DisableEmailNotification $true -Credential $guard_duty_Credentials
 
         # this will retrieve the inivitiation from the master account
-        $invite = Get-GDInvitationList -Credential $Credentials -Region $_.regions
+        $invite = Get-GDInvitationList -Credential $invite_account_Credentials -Region $_.region
 
         # will confirm the invit
-        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $Credentials -Region $_.regions
+        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $invite_account_Credentials -Region $_.region
     }
 
 }
@@ -720,6 +717,8 @@ Try {
 
             # create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
             # add_account_stackset -new_account_id $new_account.Id -environment $account_environment
+
+            # setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
 
         }
         ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
