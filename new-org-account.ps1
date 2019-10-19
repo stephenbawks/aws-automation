@@ -54,8 +54,7 @@ function post_to_teams {
 
     if ($status -eq "Success") {
         $pass_fail_image = 'https://cdn3.iconfinder.com/data/icons/flat-actions-icons-9/792/Tick_Mark_Dark-512.png'
-    }
-    elseif ($status -eq "Failure") {
+    } elseif ($status -eq "Failure") {
         $pass_fail_image = 'https://www.iconsdb.com/icons/preview/red/x-mark-xxl.png'
     }
 
@@ -316,20 +315,20 @@ function setup_guard_duty {
 
     $guard_duty_regions = @(
         @{
-            "region"     = "us-east-2"
-            "detectorid" = "acb0ea346465917edef83687b7dfe06d"
+            "Region"     = "us-east-2"
+            "DetectorId" = "acb0ea346465917edef83687b7dfe06d"
         },
         @{
-            "region"     = "us-east-1"
-            "detectorid" = "0cb0f0c874d250b10e1dcee4cd168ffa"
+            "Region"     = "us-east-1"
+            "DetectorId" = "0cb0f0c874d250b10e1dcee4cd168ffa"
         },
         @{
-            "region"     = "us-west-2"
-            "detectorid" = "deb0f1128a7c3e07e95961c01fa4c60e"
+            "Region"     = "us-west-2"
+            "DetectorId" = "deb0f1128a7c3e07e95961c01fa4c60e"
         },
         @{
-            "region"     = "us-west-1"
-            "detectorid" = "f4b100fe156d7207770c7bcc3268c3d5"
+            "Region"     = "us-west-1"
+            "DetectorId" = "f4b100fe156d7207770c7bcc3268c3d5"
         },
         @{
             "guarddutyaccount" = "503012327073"
@@ -348,21 +347,25 @@ function setup_guard_duty {
     $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
 
     $guard_duty_regions | ForEach-Object -Process {
+        $current_region = $_.Region
+        $current_region_detectorid = $_.$DetectorId
         # this creates a detector in the child/member account.  there needs to be a detector before you can accept an invitiation
-        $member_detector = New-GDDetector -Enable $true -Credential $invite_account_Credentials -Region $_.region
+        $new_member_detector = New-GDDetector -Enable $true -Credential $invite_account_Credentials -Region $current_region
         Write-Host "Member Account Detector:" $member_detector
-        Write-Host "Member Account Region:" $_.region
+        Write-Host "Member Account Region:" $current_region
 
-        New-GDMember -AccountDetail $AccountDetails -Region $_.region -DetectorId $_.detectorid -Credential $guard_duty_Credentials
-        Send-GDMemberInvitation -AccountId $new_account_id -Region $_.region -DetectorId $_.detectorid -DisableEmailNotification $true -Credential $guard_duty_Credentials
+        New-GDMember -AccountDetail $AccountDetails -Region $current_region -DetectorId $current_region_detectorid -Credential $guard_duty_Credentials
+        Send-GDMemberInvitation -AccountId $new_account_id -Region $current_region -DetectorId $current_region_detectorid -DisableEmailNotification $true -Credential $guard_duty_Credentials
         Start-Sleep -Seconds 2
 
         # this will retrieve the inivitiation from the master account
-        $invite = Get-GDInvitationList -Credential $invite_account_Credentials -Region $_.region
-        Write-Host "Member Account Invitation:" $invite
+        $invite = Get-GDInvitationList -Credential $invite_account_Credentials -Region $current_region
+        $invite_id = $invite.InvitationId
+        $invite_acct_id = $invite.AccountId
+        Write-Host "Member Account Invitation:" $invite_id
 
         # will confirm the invite in the member account from the master guard duty account
-        Confirm-GDInvitation -DetectorId $member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Credential $invite_account_Credentials -Region $_.region
+        Confirm-GDInvitation -DetectorId $new_member_detector -InvitationId $invite_id -MasterId $invite_acct_id -Credential $invite_account_Credentials -Region $current_region
     }
 
 }
@@ -394,14 +397,14 @@ function delete_default_vpc {
 
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName testorganization).Credentials
+    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
     $regions = Get-AWSRegion
 
     $regions | ForEach-Object -Process {
         $current_region = $_.Region
-        $current_account = Get-STSCallerIdentity -Credential $Credentials -Region $_.Region
+        $current_account = Get-STSCallerIdentity -Credential $Credentials -Region $current_region
         Write-Host "----------------------------------------------"
         Write-Host "Checking for Default VPCs in" $regions.count "regions."
         Write-Host "Current Account:" $current_account.Account
@@ -412,8 +415,7 @@ function delete_default_vpc {
 
         if ($vpc.count -eq 0) {
             Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
-        }
-        elseif ($vpc.count -gt 0) {
+        } elseif ($vpc.count -gt 0) {
             $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
             if ($igw) {
                 Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
@@ -421,20 +423,17 @@ function delete_default_vpc {
                 Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                    }
-                    elseif ($? -eq $false) {
+                    } elseif ($? -eq $false) {
                         Write-Host " --- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
                 Write-Host " --- Attempting to remove " $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
                 Remove-EC2InternetGateway -Region $current_region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId -Force
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                    }
-                    elseif ($? -eq $false) {
+                    } elseif ($? -eq $false) {
                         Write-Host " --- Failed to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
-            }
-            elseif ($igw -eq $null) {
+            } elseif ($igw -eq $null) {
                 Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
             }
 
@@ -453,8 +452,7 @@ function delete_default_vpc {
                         Write-Host " --- Failed to remove" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
                 }
-            }
-            elseif ($subnets -eq $null) {
+            } elseif ($subnets -eq $null) {
                 Write-Host " --- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
             }
 
@@ -462,8 +460,7 @@ function delete_default_vpc {
             Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $Credentials -Force
                 if ($? -eq $true) {
                     Write-Host " --- Succesfully removed Default VPC" $vpc.VpcId -ForegroundColor Green
-                }
-                elseif ($? -eq $false) {
+                } elseif ($? -eq $false) {
                     Write-Host " --- Failed to remove Default VPC" $vpc.VpcId -ForegroundColor Red
                 }
 
@@ -729,9 +726,10 @@ Try {
             # add_account_stackset -new_account_id $new_account.Id -environment $account_environment
 
             # setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
+            # delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
 
-        }
-        ElseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
+
+        } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
             Write-Host "Failure Reason: Email Address is in use by another account in the Organization. Needs to be unique."
             Write-Host "Request ID:    " $check_status.Id
