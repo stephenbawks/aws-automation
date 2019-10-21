@@ -128,7 +128,7 @@ function add_account_stackset {
 
     <#
     .SYNOPSIS
-        Attempts to add the new aws account to HAL
+        Attempts to add the new aws account Cloudformation StackSets
     .DESCRIPTION
         Some Description goes here
     #>
@@ -177,7 +177,7 @@ function add_account_stackset {
 
     $aws_config_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-aws-config-$environment" -Region "us-east-1" -profilename prodorganization
 
-    $config_regions = "ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1","us-east-1","us-east-2","us-west-1","us-west-2"
+    $config_regions = "ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-north-1","eu-west-3","sa-east-1","us-east-1","us-east-2","us-west-1","us-west-2"
     $config_operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-1","us-west-2","ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1"]}' | ConvertFrom-Json
     if ($aws_config_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Config StackSet. Nothing to do here."
@@ -193,18 +193,37 @@ function add_account_to_hal {
     .SYNOPSIS
         Attempts to add the new aws account to HAL
     .DESCRIPTION
-        Some Description goes here
+        Sends a SNS message to a Topic ARN in the HAL account with the details of the account that is being added/modified/deleted.
     #>
 
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $account_alias,
-        [Parameter(Mandatory = $true, Position = 1)]
         [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $environment,
         [Parameter(Mandatory = $true, Position = 2)]
-        [string] $org_role_name
+        [string] $alias,
+        [Parameter(Mandatory = $true, Position = 3)]
+        [string] $release_train,
+        [Parameter(Mandatory = $true, Position = 4)]
+        [string] $stream,
+        [Parameter(Mandatory = $true, Position = 5)]
+        [string] $action
     )
+
+        $body = ConvertTo-Json -Compress @{
+            acountId      = $new_account_id
+            environment   = $environment
+            alias         = $alias
+            release_train = $release_train
+            stream        = $stream
+            action        = $action
+        }
+
+        $topic_arn = "arn:aws:sns:us-east-1:984209812669:prod-200947-hal-new-account-queue"
+
+        Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1" -profilename prodorganization
 
 
 }
@@ -397,29 +416,32 @@ function delete_default_vpc {
 
     $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
 
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
+    $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
     $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
 
-    $regions = Get-AWSRegion
+    $vpc_regions = "ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","eu-north-1","sa-east-1","us-east-1","us-east-2","us-west-1","us-west-2"
+    $regions_count = $vpc_regions.count
 
-    $regions | ForEach-Object -Process {
-        $current_region = $_.Region
-        $current_account = Get-STSCallerIdentity -Credential $Credentials -Region $current_region
+        $vpc_regions | ForEach-Object -Process {
+        $current_region = $_
+        $current_account = Get-STSCallerIdentity -Credential $Credentials
+
         Write-Host "----------------------------------------------"
-        Write-Host "Checking for Default VPCs in" $regions.count "regions."
+        Write-Host "Checking for Default VPCs in" $regions_count "regions."
         Write-Host "Current Account:" $current_account.Account
-        Write-Host "Current Region:" $current_region
+            Write-Host "Current Region:" $current_region
         Write-Host "----------------------------------------------"
-        $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
+
+            $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
         # Write-Host "There are" ($vpc).count "Default VPCs in the Account"
 
         if ($vpc.count -eq 0) {
             Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
         } elseif ($vpc.count -gt 0) {
-            $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
+                $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
             if ($igw) {
                 Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
-                # Start-Sleep -Seconds 10
+                Start-Sleep -Seconds 10
                 Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
@@ -437,13 +459,14 @@ function delete_default_vpc {
                 Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
             }
 
-            $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
+                $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
             if ($subnets) {
                 Write-Host ""
                 Write-Host " --- Attempting to remove subnets from Default VPC" $vpc.VpcId -ForegroundColor Yellow
                 $subnets | ForEach-Object -Process {
                     # Write-Host $current_region
                     Write-Host " --- Removing Subnet:" $_.SubnetId -ForegroundColor Red
+                    Start-Sleep -Seconds 10
                     Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $Credentials -Force
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
@@ -455,7 +478,6 @@ function delete_default_vpc {
             } elseif ($subnets -eq $null) {
                 Write-Host " --- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
             }
-
             Write-Host " --- Attempting to remove Default VPC" $vpc.VpcId -ForegroundColor Yellow
             Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $Credentials -Force
                 if ($? -eq $true) {
@@ -728,6 +750,7 @@ Try {
             # setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
             # delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
 
+            # add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
 
         } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
