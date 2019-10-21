@@ -221,22 +221,24 @@ function add_account_to_hal {
             action        = $action
         }
 
-        $topic_arn = "arn:aws:sns:us-east-1:984209812669:prod-200947-hal-new-account-queue"
+        $topic_arn = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/hal_new_account_sns_topic" -WithDecryption $true).Parameters.Value
 
-        Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1" -profilename prodorganization
+        Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1"
+
+        #  -profilename prodorganization
 
 }
 
 
 
 
-function add_account_to_redlock {
+function add_account_to_prisma {
 
     <#
     .SYNOPSIS
-        Attempts to add the new aws account to redlock
+        Attempts to add the new aws account to Prisma Cloud
     .DESCRIPTION
-        Some Description goes here
+        This will invoke another lambda function to have it create the appropiate actions for Prisma Cloud account.
     #>
 
     Param
@@ -249,7 +251,18 @@ function add_account_to_redlock {
         [string] $org_role_name
     )
 
-    Write-Host "Checking the current IAM Account Alias...."
+    Write-Host "Invoke Lambda to call Prisam Cloud Lambda function...."
+
+    $argument = ConvertTo-Json -Compress @{
+        acountId      = $new_account_id
+        environment   = $environment
+        alias         = $account_alias
+        release_train = $release_train
+        stream        = $stream
+        action        = $action
+    }
+
+        Invoke-LMFunctionAsync -FunctionName <String> -InvokeArg $argument
 
 
 }
@@ -440,14 +453,13 @@ function delete_default_vpc {
             $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
             if ($igw) {
                 Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
-                Start-Sleep -Seconds 10
                 Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
                     } elseif ($? -eq $false) {
                         Write-Host " --- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
-                Write-Host " --- Attempting to remove " $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
+                Write-Host " --- Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
                 Remove-EC2InternetGateway -Region $current_region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId -Force
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
@@ -465,7 +477,6 @@ function delete_default_vpc {
                 $subnets | ForEach-Object -Process {
                     # Write-Host $current_region
                     Write-Host " --- Removing Subnet:" $_.SubnetId -ForegroundColor Red
-                    Start-Sleep -Seconds 10
                     Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $Credentials -Force
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
