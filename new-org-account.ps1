@@ -203,7 +203,7 @@ function add_account_to_hal {
         [Parameter(Mandatory = $true, Position = 1)]
         [string] $environment,
         [Parameter(Mandatory = $true, Position = 2)]
-        [string] $alias,
+        [string] $account_alias,
         [Parameter(Mandatory = $true, Position = 3)]
         [string] $release_train,
         [Parameter(Mandatory = $true, Position = 4)]
@@ -215,7 +215,7 @@ function add_account_to_hal {
         $body = ConvertTo-Json -Compress @{
             acountId      = $new_account_id
             environment   = $environment
-            alias         = $alias
+            alias         = $account_alias
             release_train = $release_train
             stream        = $stream
             action        = $action
@@ -224,7 +224,6 @@ function add_account_to_hal {
         $topic_arn = "arn:aws:sns:us-east-1:984209812669:prod-200947-hal-new-account-queue"
 
         Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1" -profilename prodorganization
-
 
 }
 
@@ -429,7 +428,7 @@ function delete_default_vpc {
         Write-Host "----------------------------------------------"
         Write-Host "Checking for Default VPCs in" $regions_count "regions."
         Write-Host "Current Account:" $current_account.Account
-            Write-Host "Current Region:" $current_region
+        Write-Host "Current Region:" $current_region
         Write-Host "----------------------------------------------"
 
             $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
@@ -438,7 +437,7 @@ function delete_default_vpc {
         if ($vpc.count -eq 0) {
             Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
         } elseif ($vpc.count -gt 0) {
-                $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
+            $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
             if ($igw) {
                 Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
                 Start-Sleep -Seconds 10
@@ -459,7 +458,7 @@ function delete_default_vpc {
                 Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
             }
 
-                $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
+            $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
             if ($subnets) {
                 Write-Host ""
                 Write-Host " --- Attempting to remove subnets from Default VPC" $vpc.VpcId -ForegroundColor Yellow
