@@ -225,20 +225,18 @@ function add_account_to_hal {
 
         Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1"
 
-        #  -profilename prodorganization
-
 }
 
 
 
 
-function add_account_to_prisma {
+function add_account_to_account_governance {
 
     <#
     .SYNOPSIS
-        Attempts to add the new aws account to Prisma Cloud
+        Attempts to add the new AWS Account tool that is used for AWS Governance and Compliance
     .DESCRIPTION
-        This will invoke another lambda function to have it create the appropiate actions for Prisma Cloud account.
+        This will invoke another Lambda function to have it create the appropiate actions for adding the new account to the tool we use for AWS Governance and Compliance.
     #>
 
     Param
@@ -251,8 +249,6 @@ function add_account_to_prisma {
         [string] $org_role_name
     )
 
-    Write-Host "Invoke Lambda to call Prisam Cloud Lambda function...."
-
     $argument = ConvertTo-Json -Compress @{
         acountId      = $new_account_id
         environment   = $environment
@@ -262,8 +258,7 @@ function add_account_to_prisma {
         action        = $action
     }
 
-        Invoke-LMFunctionAsync -FunctionName <String> -InvokeArg $argument
-
+    Invoke-LMFunctionAsync -FunctionName <String> -InvokeArg $argument
 
 }
 
@@ -370,11 +365,11 @@ function setup_guard_duty {
     $guard_duty_role = "arn:aws:iam::" + $guard_duty_regions.guarddutyaccount + ":role/" + $org_role_name
 
     #creates a set of crendentials in the account to be invited to guard duty
-    $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
+    $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole-child" -ProfileName prodorganization).Credentials
     $invite_account_Credentials = New-AWSCredentials -AccessKey $invite_account_Response.AccessKeyId -SecretKey $invite_account_Response.SecretAccessKey -SessionToken $invite_account_Response.SessionToken
 
     #creates a set of crendentials in master guard duty account
-    $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole" -ProfileName prodorganization).Credentials
+    $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole-master" -ProfileName prodorganization).Credentials
     $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
 
     $guard_duty_regions | ForEach-Object -Process {
@@ -444,7 +439,7 @@ function delete_default_vpc {
         Write-Host "Current Region:" $current_region
         Write-Host "----------------------------------------------"
 
-            $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
+        $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
         # Write-Host "There are" ($vpc).count "Default VPCs in the Account"
 
         if ($vpc.count -eq 0) {
@@ -761,6 +756,7 @@ Try {
             # delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
 
             # add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
+            add_account_to_account_governance
 
         } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
