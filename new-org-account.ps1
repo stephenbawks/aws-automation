@@ -213,7 +213,7 @@ function add_account_to_hal {
     )
 
         $body = ConvertTo-Json -Compress @{
-            acountId      = $new_account_id
+            account_id    = $new_account_id
             environment   = $environment
             alias         = $account_alias
             release_train = $release_train
@@ -250,7 +250,7 @@ function add_account_to_account_governance {
     )
 
     $argument = ConvertTo-Json -Compress @{
-        acountId      = $new_account_id
+        account_id    = $new_account_id
         environment   = $environment
         alias         = $account_alias
         release_train = $release_train
@@ -694,7 +694,7 @@ function add_account_to_grafana {
 
 $app_id = $ENV:app_id
 
-# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","IamUserAccessToBilling":"ALLOW","Environment":"nonprod"}'
+# $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","Stream":"somestream","ReleaseTrain":"releasetrain","Environment":"nonprod"}'
 
 ##################################################################################
 
@@ -703,8 +703,10 @@ $app_id = $ENV:app_id
 Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
 $account_to_create_name = $LambdaInput.AccountName
 $account_to_create_email = $LambdaInput.Email
-$account_to_create_billing = $LambdaInput.IamUserAccessToBilling
+$account_to_create_billing = "ALLOW"
 $account_environment = ($LambdaInput.Environment).tolower()
+$account_stream = $LambdaInput.Stream
+$account_release_train = $LambdaInput.ReleaseTrain
 
 
 $organization_role = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/organization_role" –WithDecryption $true).Parameters.Value
@@ -728,7 +730,8 @@ Try {
         if ($check_status.State.Value -eq "SUCCEEDED") {
 
             $new_account = Get-ORGAccount -region "us-east-2" -AccountId $check_status.AccountId
-            $account_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" } )
+                $account_tags = @(@{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" }, @{key = "environment"; value = $account_environment }, @{key = "release-train"; value = $account_release_train }, @{key = "stream"; value = $account_stream })
+
             Add-ORGResourceTag -ResourceId $new_account.Id -Tag $account_tags
 
             Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
@@ -756,7 +759,7 @@ Try {
             # delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
 
             # add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
-            add_account_to_account_governance
+            # add_account_to_account_governance
 
         } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
             Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
