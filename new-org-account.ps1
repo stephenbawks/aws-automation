@@ -196,6 +196,17 @@ function add_account_stackset {
         # -ProfileName prodorganization
     }
 
+    $aws_governance_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-governance-ql-$environment" -Region "us-east-2"
+    # -profilename prodorganization
+
+    if ($aws_governance_stackset.Account -contains $new_account_id) {
+        Write-Host "Account $new_account_id is already in the Base Account Governance StackSet. Nothing to do here."
+    } elseif ($aws_governance_stackset.Account -notcontains $new_account_id) {
+        Write-Host "Account $new_account_id is not in the Base Account Governance StackSet and will be added. Creating Stack Instance."
+        New-CFNStackInstance -StackSetName "base-account-setup-governance-ql-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-2"
+        # -ProfileName prodorganization
+    }
+
 
     function add_account_to_hal {
 
@@ -758,22 +769,22 @@ function add_account_stackset {
 
                 # post message to teams channel on success
                 post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
-                # add_account_ent_support -new_account_id $new_account.Id
+                add_account_ent_support -new_account_id $new_account.Id
 
                 $grafana_account_format = $account_to_create_name + " (" + $new_account.Id + ")"
-                # add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
+                add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
 
                 $new_account_name_alias = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
-                # update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $organization_role
-                # update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
+                update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $organization_role
+                update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
 
-                # create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
-                # add_account_stackset -new_account_id $new_account.Id -environment $account_environment
+                create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
+                add_account_stackset -new_account_id $new_account.Id -environment $account_environment
 
-                # setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
-                # delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
+                setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
+                delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
 
-                # add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
+                add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
                 # add_account_to_account_governance
 
             } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
