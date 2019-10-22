@@ -140,7 +140,9 @@ function add_account_stackset {
         [Parameter(Mandatory = $true, Position = 0)]
         [string] $new_account_id,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $environment
+        [string] $environment,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $foc
     )
 
     # Grab accounts in a particular StackSet
@@ -196,7 +198,7 @@ function add_account_stackset {
         # -ProfileName prodorganization
     }
 
-    $aws_governance_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-governance-ql-$environment" -Region "us-east-2"
+    $aws_governance_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-governance-$foc-$environment" -Region "us-east-2"
     # -profilename prodorganization
 
     if ($aws_governance_stackset.Account -contains $new_account_id) {
@@ -733,6 +735,7 @@ function add_account_stackset {
     $account_environment = ($LambdaInput.Environment).tolower()
     $account_stream = $LambdaInput.Stream
     $account_release_train = $LambdaInput.ReleaseTrain
+    $account_foc = $LambdaInput.FOC
 
 
     $organization_role = (Get-SSMParameterValue -Name "/kraken/prod-aws/$app_id/organization_role" –WithDecryption $true).Parameters.Value
@@ -779,7 +782,7 @@ function add_account_stackset {
                 update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
 
                 create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
-                add_account_stackset -new_account_id $new_account.Id -environment $account_environment
+                add_account_stackset -new_account_id $new_account.Id -environment $account_environment -foc $account_foc
 
                 setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
                 delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
