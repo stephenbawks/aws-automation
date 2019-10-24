@@ -12,7 +12,15 @@
 # To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement
 # indicating the module and version.
 
-#Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
+# Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
+#Requires -Modules @{ModuleName = 'AWS.Tools.AWSSupport'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.CloudFormation'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.Organizations'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleNotificationService'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '3.3.604.0' }
 
 # AWS Documentation
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
@@ -720,17 +728,18 @@ function add_account_stackset {
     # app id 203880
     # Pulls app_id from the lambda environment variable
 
-    $app_id = $ENV:app_id
+    $app_id = $ENV:APP_ID
 
-    # $LambdaInput = '{"AccountName":"[QL] Data Operations Prod","Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com","Stream":"somestream","ReleaseTrain":"releasetrain","Environment":"nonprod"}'
-
+    # $LambdaInput = '{"AccountName":"Data Operations","FOC":"QL","Stream":"somestream","ReleaseTrain":"releasetrain","Environment":"Prod"}'
+    # ,"Email":"AWS-QLDataOperations-Prod-Root@quickenloans.com"
     ##################################################################################
 
 
     # Start of the acccount creation process
     Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
-    $account_to_create_name = $LambdaInput.AccountName
-    $account_to_create_email = $LambdaInput.Email
+    $account_to_create_name = "[" + $LambdaInput.FOC + "]" + " " + $LambdaInput.AccountName + " " + $LambdaInput.Environment
+    $account_to_create_email = "AWS-" + $LambdaInput.FOC + ($LambdaInput.AccountName -replace '\s', '') + "-" + $LambdaInput.Environment + "-Root@quickenloans.com"
+    # $LambdaInput.Email
     $account_to_create_billing = "ALLOW"
     $account_environment = ($LambdaInput.Environment).tolower()
     $account_stream = $LambdaInput.Stream
