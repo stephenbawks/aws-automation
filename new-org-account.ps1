@@ -15,6 +15,7 @@
 # Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
 #Requires -Modules @{ModuleName = 'AWS.Tools.AWSSupport'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.CloudFormation'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.EC2'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '3.3.604.0' }
