@@ -17,7 +17,6 @@
 #Requires -Modules @{ModuleName = 'AWS.Tools.CloudFormation'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.EC2'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.Lambda'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.Organizations'; ModuleVersion = '3.3.604.0' }
@@ -775,9 +774,9 @@ function add_account_stackset {
     Write-Host ""
 
     Try {
-        # $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $organization_role -Region "us-east-2"
+        $create_account = New-ORGAccount -AccountName $account_to_create_name -Email $account_to_create_email -IamUserAccessToBilling $account_to_create_billing -RoleName $organization_role -Region "us-east-2"
 
-        # $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
+        $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
 
         Do {
             Write-Host "$(Get-TimeStamp) - Waiting for account to finish creating...."
