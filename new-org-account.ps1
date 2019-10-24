@@ -24,8 +24,8 @@
 #Requires -Modules @{ModuleName = 'AWS.Tools.SimpleNotificationService'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '3.3.604.0' }
 
-AWS.Tools.Lambda
 # AWS Documentation
+# https://docs.aws.amazon.com/powershell/latest/reference/
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
 # https://docs.aws.amazon.com/powershell/latest/reference/Index.html
 
