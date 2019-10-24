@@ -19,10 +19,13 @@
 #Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.Lambda'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.Organizations'; ModuleVersion = '3.3.604.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SecurityToken'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.SimpleNotificationService'; ModuleVersion = '3.3.604.0' }
 #Requires -Modules @{ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '3.3.604.0' }
 
+AWS.Tools.Lambda
 # AWS Documentation
 # https://docs.aws.amazon.com/organizations/latest/APIReference/API_CreateAccount.html
 # https://docs.aws.amazon.com/powershell/latest/reference/Index.html
@@ -63,7 +66,8 @@ function post_to_teams {
 
     if ($status -eq "Success") {
         $pass_fail_image = 'https://cdn3.iconfinder.com/data/icons/flat-actions-icons-9/792/Tick_Mark_Dark-512.png'
-    } elseif ($status -eq "Failure") {
+    }
+    elseif ($status -eq "Failure") {
         $pass_fail_image = 'https://www.iconsdb.com/icons/preview/red/x-mark-xxl.png'
     }
 
@@ -160,7 +164,8 @@ function add_account_stackset {
     # Check to see if the new account exists in the array
     if ($base_roles_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Roles StackSet. Nothing to do here."
-    } elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
+    }
+    elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1"
         # -ProfileName prodorganization
@@ -176,7 +181,8 @@ function add_account_stackset {
     #need to double check this if statement.  want to make sure that each region is in the stackset for the new account
     if ($aws_hal_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account HAL Roles Child StackSet. Nothing to do here."
-    } elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
+    }
+    elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -Region "us-east-1"
         # -ProfileName prodorganization
@@ -187,7 +193,8 @@ function add_account_stackset {
     # -profilename prodorganization
     if ($aws_cloudtrail_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Cloudtrai StackSet. Nothing to do here."
-    } elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
+    }
+    elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-cloudtrail-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1"
         # -ProfileName prodorganization
@@ -201,7 +208,8 @@ function add_account_stackset {
     $config_operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-1","us-west-2","ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1"]}' | ConvertFrom-Json
     if ($aws_config_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Config StackSet. Nothing to do here."
-    } elseif ($aws_config_stackset.Account -notcontains $new_account_id) {
+    }
+    elseif ($aws_config_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Config StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-aws-config-$environment" -Account $new_account_id -StackInstanceRegion $config_regions -OperationPreference $config_operation_preference -Region "us-east-1"
         # -ProfileName prodorganization
@@ -212,7 +220,8 @@ function add_account_stackset {
 
     if ($aws_governance_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Governance StackSet. Nothing to do here."
-    } elseif ($aws_governance_stackset.Account -notcontains $new_account_id) {
+    }
+    elseif ($aws_governance_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Governance StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-governance-ql-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-2"
         # -ProfileName prodorganization
@@ -479,24 +488,28 @@ function add_account_stackset {
 
             if ($vpc.count -eq 0) {
                 Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
-            } elseif ($vpc.count -gt 0) {
+            }
+            elseif ($vpc.count -gt 0) {
                 $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
                 if ($igw) {
                     Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
                     Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                    } elseif ($? -eq $false) {
+                    }
+                    elseif ($? -eq $false) {
                         Write-Host " --- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
                     Write-Host " --- Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
                     Remove-EC2InternetGateway -Region $current_region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId -Force
                     if ($? -eq $true) {
                         Write-Host " --- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                    } elseif ($? -eq $false) {
+                    }
+                    elseif ($? -eq $false) {
                         Write-Host " --- Failed to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
                     }
-                } elseif ($igw -eq $null) {
+                }
+                elseif ($igw -eq $null) {
                     Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
                 }
 
@@ -510,18 +523,21 @@ function add_account_stackset {
                         Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $Credentials -Force
                         if ($? -eq $true) {
                             Write-Host " --- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
-                        } elseif ($? -eq $false) {
+                        }
+                        elseif ($? -eq $false) {
                             Write-Host " --- Failed to remove" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Red
                         }
                     }
-                } elseif ($subnets -eq $null) {
+                }
+                elseif ($subnets -eq $null) {
                     Write-Host " --- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
                 }
                 Write-Host " --- Attempting to remove Default VPC" $vpc.VpcId -ForegroundColor Yellow
                 Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $Credentials -Force
                 if ($? -eq $true) {
                     Write-Host " --- Succesfully removed Default VPC" $vpc.VpcId -ForegroundColor Green
-                } elseif ($? -eq $false) {
+                }
+                elseif ($? -eq $false) {
                     Write-Host " --- Failed to remove Default VPC" $vpc.VpcId -ForegroundColor Red
                 }
 
@@ -578,7 +594,8 @@ function add_account_stackset {
                 Write-Host "---------------------------------------------------------------------"
                 Write-Host ""
             }
-        } elseif ($current_account_alias -eq $account_alias) {
+        }
+        elseif ($current_account_alias -eq $account_alias) {
             # current iam account alias is already set up to match
             Write-Host "----------------------------------------------"
             Write-Host "IAM Account is already correct. Nothing to do."
@@ -800,7 +817,8 @@ function add_account_stackset {
                 add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
                 # add_account_to_account_governance
 
-            } elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
+            }
+            elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
                 Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
                 Write-Host "Failure Reason: Email Address is in use by another account in the Organization. Needs to be unique."
                 Write-Host "Request ID:    " $check_status.Id
