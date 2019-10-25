@@ -298,7 +298,7 @@ function add_account_stackset {
             action        = $action
         }
 
-        Invoke-LMFunctionAsync -FunctionName <String> -InvokeArg $argument
+        # Invoke-LMFunctionAsync -FunctionName <String> -InvokeArg $argument
 
     }
 
