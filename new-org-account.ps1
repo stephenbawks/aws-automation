@@ -34,14 +34,104 @@
 # https://www.powershellgallery.com/packages/AWSPowerShell
 
 
+function org_account_assume_credentials {
 
-function Get-TimeStamp {
-    # function to attach a timestamp to the logs
-    # mainly for troubleshooting
-    return "[{0:MM/dd/yy} {0:HH:mm:ss}]" -f (Get-Date)
+    <#
+    .SYNOPSIS
+        Creates a set of credentials into the child account from the master organization account.
+    .DESCRIPTION
+        This is the set of credentials that will be used by many of the functions to run code against the new child account
+        these credentials are from.
+    #>
 
+    param (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $new_account_id
+    )
+
+    Write-Host "Creating set of Credentials in new Child Account....."
+
+    $organization_role = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/organization_role" –WithDecryption $true).Parameters.Value
+    $assume_role = "arn:aws:iam::" + $new_account_id + ":role/" + $organization_role
+
+    Write-Host "Assuming into Child Account ID: " $new_account_id
+    Write-Host "Assuming with Role ARN: " $assume_role
+
+    $wait_time = 10
+    $retry_limit = 3
+    $Stoploop = $false
+    [int]$Retrycount = "0"
+
+    do {
+        try {
+            # Scripts Commands here
+            Write-Host "Attempt Number: $Retrycount"
+            $Response = (Use-STSRole -RoleArn $assume_role -RoleSessionName "orgaccountassume").Credentials
+            $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+
+            return $Credentials
+            $Stoploop = $true
+        }
+        catch {
+            if ($Retrycount -gt $retry_limit) {
+                Write-Host "Could not Assume Role after $retry_limit attempts."
+                $Stoploop = $true
+            }
+            else {
+                Write-Host "Waiting $wait_time seconds and retrying..."
+                Start-Sleep -Seconds $wait_time
+                $Retrycount = $Retrycount + 1
+            }
+        }
+    }
+    While ($Stoploop -eq $false)
 }
 
+
+function guard_duty_master_account_assume_credentials {
+
+    <#
+    .SYNOPSIS
+        Creates a set of credentials into the Guard Duty Master account.
+    .DESCRIPTION
+        This is the set of credentials that will be used by Guard Duty function to add new accounts to Guard Duty Master.
+    #>
+
+    $organization_role = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/organization_role" -WithDecryption $true).Parameters.Value
+    $guard_duty_master = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/guard_duty_master_account" -WithDecryption $true).Parameters.Value
+    $assume_role = "arn:aws:iam::" + $guard_duty_master + ":role/" + $organization_role
+
+    Write-Host "Assuming into Guard Duty Master Account ID: " $guard_duty_master
+    Write-Host "Assuming with Role ARN: " $assume_role
+
+    $Stoploop = $false
+    [int]$Retrycount = "0"
+
+    do {
+        try {
+            # Scripts Commands here
+            Write-Host "Attempt Number: $Retrycount"
+            $Response = (Use-STSRole -RoleArn $assume_role -RoleSessionName "guard-duty-master-account").Credentials
+            $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+
+            return $Credentials
+            $Stoploop = $true
+        }
+        catch {
+            if ($Retrycount -gt 3) {
+                Write-Host "Could not Assume Role after $Retrycount attempts."
+                $Stoploop = $true
+            }
+            else {
+                Write-Host "Waiting 10 seconds and retrying..."
+                Start-Sleep -Seconds 10
+                $Retrycount = $Retrycount + 1
+            }
+        }
+    }
+    While ($Stoploop -eq $false)
+
+}
 
 
 function post_to_teams {
@@ -83,21 +173,14 @@ function post_to_teams {
             },
             @{
                 title = 'Details'
-                facts = @(
-                    @{
-                        name  = 'Account Creation Step'
-                        value = $process
-                    },
-                    @{
-                        name  = 'Details'
-                        value = $details
-                    }
-                )
+                facts = $notification
             }
         )
     }
 
-    Invoke-RestMethod -uri $uri -Method Post -body $body -ContentType 'application/json'
+    $method = 'POST'
+    $content_type = 'application/json'
+    Invoke-RestMethod -uri $uri -Method $method -body $body -ContentType $content_type
 }
 
 
@@ -113,29 +196,59 @@ function create_stackset_exec_role {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $org_role_name,
-        [Parameter(Mandatory = $true, Position = 1)]
         [string] $new_account_id
     )
 
-    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
+    $get_organization = Get-ORGOrganization
+    $organization_master_id = $get_organization.MasterAccountId
 
-    $org_account_id = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/org_account_id" –WithDecryption $true).Parameters.Value
-    # -profilename prodorganization
-
-    $role_tags = @( @{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "cloudformation" } )
-
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole").Credentials
-    # -ProfileName prodorganization
-    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
+    $role_tags = @( @{key = "app-id"; value = $app_id }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "cloudformation" } )
 
     $stackset_role_name = "AWSCloudFormationStackSetExecutionRole"
     $stackset_role_desc = "Stack Set Role to push StackSets from the Org"
-    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::' + $org_account_id + ':root"},"Action":"sts:AssumeRole"}]}'
+    $stackset_role_trust_policy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal": {"AWS": "arn:aws:iam::' + $organization_master_id + ':root"},"Action":"sts:AssumeRole"}]}'
 
-    New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -Tag $role_tags -Credential $Credentials
 
-    Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess" -Credential $Credentials
+    Write-Host "----------------------------------------------"
+    Write-Host "Creating StackSet Execution Role"
+    Write-Host "Role Name:" $stackset_role_name
+    Write-Host "Master Organization ID: $organization_master_id"
+    Write-Host "Policy: $stackset_role_trust_policy"
+    Write-Host "----------------------------------------------"
+
+    try {
+        New-IAMRole -RoleName $stackset_role_name -AssumeRolePolicyDocument $stackset_role_trust_policy -Description $stackset_role_desc -Tag $role_tags -Credential $org_account_Credentials
+        Write-Host "Waiting 5 seconds for IAM role to be ready..."
+        Start-Sleep -Seconds 5
+        Register-IAMRolePolicy -RoleName $stackset_role_name -PolicyArn 'arn:aws:iam::aws:policy/AdministratorAccess' -Credential $org_account_Credentials
+        Write-Host "$stackset_role_name has been created."
+
+        $stack_set_role_details = @{
+            name  = 'Stack Set Role Creation'
+            value = 'Success'
+        }
+        $notification.Add($stack_set_role_details)
+    }
+    catch [Amazon.IdentityManagement.Model.EntityAlreadyExistsException] {
+        Write-Host "$stackset_role_name role already exists.  Nothing to do here."
+
+        $stack_set_role_details = @{
+            name  = 'Stack Set Role Creation'
+            value = 'Success'
+        }
+        $notification.Add($stack_set_role_details)
+    }
+    catch {
+        Write-Host "Failed to create StackSet Execution Role."
+        Write-Host $_.Exception.Message
+        $stack_set_role_details = @{
+            name  = 'Stack Set Role Creation'
+            value = 'Failure'
+        }
+        $notification.Add($stack_set_role_details)
+    }
+
+
 }
 
 
@@ -160,7 +273,7 @@ function add_account_stackset {
 
     # Grab accounts in a particular StackSet
     $base_roles_stackset = Get-CFNStackInstanceList -StackSetName "base-account-role-policy-$environment" -Region "us-east-1"
-    # -profilename prodorganization
+
     # Check to see if the new account exists in the array
     if ($base_roles_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Roles StackSet. Nothing to do here."
@@ -168,12 +281,10 @@ function add_account_stackset {
     elseif ($base_roles_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1"
-        # -ProfileName prodorganization
-        # Update-CFNStackInstance -StackSetName "base-account-role-policy-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -ProfileName testorganization
     }
 
     $aws_hal_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-hal-role-child-account-$environment" -Region "us-east-1"
-    # -profilename prodorganization
+
     # Check to see if the new account exists in the array
     $aws_hal_stackset_regions = 'us-east-2', 'us-east-1', 'us-west-2', 'us-west-1'
     $operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-2","us-west-1"]}' | ConvertFrom-Json
@@ -185,24 +296,20 @@ function add_account_stackset {
     elseif ($aws_hal_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -Region "us-east-1"
-        # -ProfileName prodorganization
-        # Update-CFNStackInstance -StackSetName "base-account-setup-hal-role-child-account-$environment" -Account $new_account_id -StackInstanceRegion $aws_hal_stackset_regions -OperationPreference $operation_preference -ProfileName testorganization
     }
 
     $aws_cloudtrail_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-cloudtrail-$environment" -Region "us-east-1"
-    # -profilename prodorganization
+
     if ($aws_cloudtrail_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Cloudtrai StackSet. Nothing to do here."
     }
     elseif ($aws_cloudtrail_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Roles StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-cloudtrail-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-1"
-        # -ProfileName prodorganization
     }
 
 
     $aws_config_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-aws-config-$environment" -Region "us-east-1"
-    # -profilename prodorganization
 
     $config_regions = "ap-northeast-1", "ap-northeast-2", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-north-1", "eu-west-3", "sa-east-1", "us-east-1", "us-east-2", "us-west-1", "us-west-2"
     $config_operation_preference = '{"RegionOrder":["us-east-2","us-east-1","us-west-1","us-west-2","ap-northeast-1","ap-northeast-2","ap-south-1","ap-southeast-1","ap-southeast-2","ca-central-1","eu-central-1","eu-west-1","eu-west-2","eu-west-3","sa-east-1"]}' | ConvertFrom-Json
@@ -216,7 +323,6 @@ function add_account_stackset {
     }
 
     $aws_governance_stackset = Get-CFNStackInstanceList -StackSetName "base-account-setup-governance-$foc-$environment" -Region "us-east-2"
-    # -profilename prodorganization
 
     if ($aws_governance_stackset.Account -contains $new_account_id) {
         Write-Host "Account $new_account_id is already in the Base Account Governance StackSet. Nothing to do here."
@@ -224,7 +330,6 @@ function add_account_stackset {
     elseif ($aws_governance_stackset.Account -notcontains $new_account_id) {
         Write-Host "Account $new_account_id is not in the Base Account Governance StackSet and will be added. Creating Stack Instance."
         New-CFNStackInstance -StackSetName "base-account-setup-governance-ql-$environment" -Account $new_account_id -StackInstanceRegion "us-east-2" -Region "us-east-2"
-        # -ProfileName prodorganization
     }
 }
 
@@ -254,6 +359,7 @@ function add_account_to_hal {
         [string] $action
     )
 
+    # Values that will work for Action are: create/update/delete
     $body = ConvertTo-Json -Compress @{
         account_id    = $new_account_id
         environment   = $environment
@@ -263,44 +369,109 @@ function add_account_to_hal {
         action        = $action
     }
 
+    Write-Host "Adding new Account to HAL. Publising a message to SNS Topic....."
+
     $topic_arn = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/hal_new_account_sns_topic" -WithDecryption $true).Parameters.Value
 
-    Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1"
+    try {
+        Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-1"
+
+        $hal_details = @{
+            name  = 'HAL9000 Notification'
+            value = 'Success'
+        }
+        $notification.Add($hal_details)
+
+        Write-Host "Adding new Account to HAL has been successful."
+
+    }
+    catch [Amazon.SimpleNotificationService.Model.AuthorizationErrorException] {
+        Write-Host "Failed to post to HAL SNS Topic because of missing IAM permissions."
+        $hal_details = @{
+            name  = 'HAL9000 Notification'
+            value = 'Failure - Missing IAM Permissions on SNS Topic'
+        }
+        $notification.Add($hal_details)
+    }
+    finally {
+        Write-Host "Failed to post to HAL SNS Topic."
+        $hal_details = @{
+            name  = 'HAL9000 Notification'
+            value = 'Failure'
+        }
+        $notification.Add($hal_details)
+    }
 
 }
 
 
 
 
-# function add_account_to_account_governance {
+function add_account_to_account_governance {
 
-#     <#
-# .SYNOPSIS
-#     Attempts to add the new AWS Account tool that is used for AWS Governance and Compliance
-# .DESCRIPTION
-#     This will invoke another Lambda function to have it create the appropiate actions for adding the new account to the tool we use for AWS Governance and Compliance.
-# #>
+    <#
+.SYNOPSIS
+    Attempts to add the new AWS Account tool that is used for AWS Governance and Compliance
+.DESCRIPTION
+    This will invoke another Lambda function to have it create the appropiate actions for adding the new account to the tool we use for AWS Governance and Compliance.
+#>
 
-#     Param
-#     (
-#         [Parameter(Mandatory = $true, Position = 0)]
-#         [string] $new_account_id,
-#         [Parameter(Mandatory = $true, Position = 1)]
-#         [string] $account_name
-#     )
+    Param
+    (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string] $new_account_id,
+        [Parameter(Mandatory = $true, Position = 1)]
+        [string] $account_name,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [string] $account_environment,
+        [Parameter(Mandatory = $true, Position = 3)]
+        [string] $release_train,
+        [Parameter(Mandatory = $true, Position = 4)]
+        [string] $stream
+    )
 
-#     $argument = ConvertTo-Json -Compress @{
-#         action          = "create"
-#         type            = "aws"
-#         name            = $account_name
-#         aws_account_id  = $new_account_id
-# release_train   = $release_train
-# stream          = $stream
-#     }
+    # Values that will work for Environment: sandbox/nonprod/prod
+    $body = ConvertTo-Json -Compress @{
+        type           = "aws"
+        action         = "create"
+        name           = $account_name
+        aws_account_id = $new_account_id
+        environment    = $account_environment
+        release_train  = $release_train
+        stream         = $stream
+    }
 
-#     Invoke-LMFunctionAsync -FunctionName "QL-Prisma-CloudAccounts" -paylo $argument
+    $topic_arn = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/prisma_sns_topic" -WithDecryption $true).Parameters.Value
 
-# }
+    try {
+        Publish-SNSMessage -TopicArn $topic_arn -Subject "New Account - $new_account_id" -Message $body -Region "us-east-2"
+
+        $prisma_details = @{
+            name  = 'Prisma Notification'
+            value = 'Success'
+        }
+        $notification.Add($prisma_details)
+
+    }
+    catch [Amazon.SimpleNotificationService.Model.AuthorizationErrorException] {
+
+        Write-Host "Failed to post to Prisma SNS Topic because of missing IAM permissions."
+
+        $prisma_details = @{
+            name  = 'Prisma Notification'
+            value = 'Failure - Missing IAM Permissions on SNS Topic'
+        }
+        $notification.Add($prisma_details)
+    }
+    finally {
+        Write-Host "Failed to post to HAL SNS Topic."
+        $prisma_details = @{
+            name  = 'Prisma Notification'
+            value = 'Failure'
+        }
+        $notification.Add($prisma_details)
+    }
+}
 
 function add_account_ent_support {
 
@@ -321,13 +492,35 @@ function add_account_ent_support {
         [string] $new_account_id
     )
 
-    $email_address = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/email_for_notifications" –WithDecryption $true).Parameters.Value
-    New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress $email_address -Region "us-east-1"
+    try {
+        $email_address = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/email_for_notifications" –WithDecryption $true).Parameters.Value
+        New-ASACase -Subject "New Account - Add to Enterprise Support" -IssueType "customer-service" -ServiceCode "account-management" -CategoryCode "billing" -SeverityCode "low" -CommunicationBody "Can you please add $new_account_id to our Enterprise Support agreement?" -CcEmailAddress $email_address -Region "us-east-1"
+
+        $support_details = @{
+            name  = 'Enterprise Support'
+            value = 'Success - Ticket Created'
+        }
+        $notification.Add($support_details)
+    }
+    catch {
+        $error_message = $error[0].Exception.message
+        Write-Host "An error occurred: " + $error_message
+        $support_details = @{
+            name  = 'Enterprise Support'
+            value = 'Failed - Could not create Support Ticket'
+        }
+        $notification.Add($support_details)
+    }
+    finally {
+        Write-Host 'Failed to create Enterprise Support Case.'
+        $prisma_details = @{
+            name  = 'Enterprise Support'
+            value = 'Failed - Could not create Support Ticket'
+        }
+        $notification.Add($prisma_details)
+    }
 
 }
-
-
-
 
 
 function create_org_ou {
@@ -359,12 +552,59 @@ function setup_guard_duty {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $org_role_name,
-        [Parameter(Mandatory = $true, Position = 1)]
         [string] $new_account_id,
-        [Parameter(Mandatory = $true, Position = 2)]
+        [Parameter(Mandatory = $true, Position = 1)]
         [string] $email_address
     )
+
+    $guard_duty_master = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/guard_duty_master_account" –WithDecryption $true).Parameters.Value
+
+    if ($guard_duty_master -eq "503012327073") {
+        Write-Host "Guard Duty Environment: Prod Organization"
+        Write-Host "Guard Duty Master Account: 503012327073"
+
+        $guard_duty_parameters = @(
+            @{
+                "Region"     = "us-east-2"
+                "DetectorId" = "acb0ea346465917edef83687b7dfe06d"
+            },
+            @{
+                "Region"     = "us-east-1"
+                "DetectorId" = "0cb0f0c874d250b10e1dcee4cd168ffa"
+            },
+            @{
+                "Region"     = "us-west-2"
+                "DetectorId" = "deb0f1128a7c3e07e95961c01fa4c60e"
+            },
+            @{
+                "Region"     = "us-west-1"
+                "DetectorId" = "f4b100fe156d7207770c7bcc3268c3d5"
+            }
+        )
+    }
+    elseif ($guard_duty_master -eq "267798967938") {
+        Write-Host "Guard Duty Environment: NonProd Organization"
+        Write-Host "Guard Duty Master Account: 267798967938"
+
+        $guard_duty_parameters = @(
+            @{
+                "Region"     = "us-east-2"
+                "DetectorId" = "aeb70c9c10f806005070a90f001c9597"
+            },
+            @{
+                "Region"     = "us-east-1"
+                "DetectorId" = "46b70c9dd9e919af91469795b4967540"
+            },
+            @{
+                "Region"     = "us-west-2"
+                "DetectorId" = "9ab70c9dfaf3bcfdab82e2a867d41691"
+            },
+            @{
+                "Region"     = "us-west-1"
+                "DetectorId" = "4eb70c9deb465e0a53b373b270c012b8"
+            }
+        )
+    }
 
 
     $AccountDetails = @{
@@ -372,65 +612,91 @@ function setup_guard_duty {
         Email     = $email_address
     }
 
+    $guard_duty_parameters | ForEach-Object -Process {
+        $detectorId = $_.DetectorId
+        $detectorRegion = $_.Region
+        Write-Host "Region: " $detectorRegion
+        Write-Host "Guard Duty Master Detector: " $detectorId
 
+        $wait_time = 5
+        $retry_limit = 3
+        $Stoploop = $false
+        [int]$Retrycount = "0"
 
+        do {
+            try {
+                # Scripts Commands here
+                Write-Host "Attempt Number: $Retrycount"
+                $new_member_detector = New-GDDetector -Enable $true -Region $detectorRegion -Credential $org_account_Credentials
 
-
-    $guard_duty_regions = @(
-        @{
-            "Region"     = "us-east-2"
-            "DetectorId" = "acb0ea346465917edef83687b7dfe06d"
-        },
-        @{
-            "Region"     = "us-east-1"
-            "DetectorId" = "0cb0f0c874d250b10e1dcee4cd168ffa"
-        },
-        @{
-            "Region"     = "us-west-2"
-            "DetectorId" = "deb0f1128a7c3e07e95961c01fa4c60e"
-        },
-        @{
-            "Region"     = "us-west-1"
-            "DetectorId" = "f4b100fe156d7207770c7bcc3268c3d5"
-        },
-        @{
-            "guarddutyaccount" = "503012327073"
+                $Stoploop = $true
+            }
+            catch {
+                if ($Retrycount -gt $retry_limit) {
+                    Write-Host "Could not Create a new Detector after $Retrycount attempts."
+                    $Stoploop = $true
+                }
+                else {
+                    Write-Host "Waiting $wait_time seconds and retrying to create the Detector..."
+                    Start-Sleep -Seconds $wait_time
+                    $Retrycount = $Retrycount + 1
+                }
+            }
         }
-    )
+        While ($Stoploop -eq $false)
 
-    $account_to_invite_role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
-    $guard_duty_role = "arn:aws:iam::" + $guard_duty_regions.guarddutyaccount + ":role/" + $org_role_name
+        Write-Host "Member Account Detector:" $new_member_detector
+        Write-Host "Member Account Region:" $detectorRegion
 
-    #creates a set of crendentials in the account to be invited to guard duty
-    $invite_account_Response = (Use-STSRole -RoleArn $account_to_invite_role -RoleSessionName "assumedrole-child").Credentials
-    # -ProfileName prodorganization
-    $invite_account_Credentials = New-AWSCredentials -AccessKey $invite_account_Response.AccessKeyId -SecretKey $invite_account_Response.SecretAccessKey -SessionToken $invite_account_Response.SessionToken
+        New-GDMember -AccountDetail $AccountDetails -Region $detectorRegion -DetectorId $detectorId -Credential $gd_master_Credentials
+        # Start-Sleep -Seconds 2
+        Send-GDMemberInvitation -AccountId $new_account_id -Region $detectorRegion -DetectorId $detectorId -Credential $gd_master_Credentials -DisableEmailNotification $true
 
-    #creates a set of crendentials in master guard duty account
-    $guard_duty_Response = (Use-STSRole -RoleArn $guard_duty_role -RoleSessionName "assumedrole-master").Credentials
-    # -ProfileName prodorganization
-    $guard_duty_Credentials = New-AWSCredentials -AccessKey $guard_duty_Response.AccessKeyId -SecretKey $guard_duty_Response.SecretAccessKey -SessionToken $guard_duty_Response.SessionToken
+        do {
+            try {
+                # this will retrieve the inivitiation from the master account
+                # putting this in a while loop because it sometimes take a few seconds for the invite to show up
+                Write-Host "Attempt Number: $Retrycount"
+                Write-Host "Getting Guard Duty Invitation from Child Accound: " $new_account_id
+                $invite = Get-GDInvitationList -Region $detectorRegion -Credential $org_account_Credentials
 
-    $guard_duty_regions | ForEach-Object -Process {
-        $current_region = $_.Region
-        $current_region_detectorid = $_.$DetectorId
-        # this creates a detector in the child/member account.  there needs to be a detector before you can accept an invitiation
-        $new_member_detector = New-GDDetector -Enable $true -Credential $invite_account_Credentials -Region $current_region
-        Write-Host "Member Account Detector:" $member_detector
-        Write-Host "Member Account Region:" $current_region
+                # $invite_id = $invite.InvitationId
+                # $invite_master_acct_id = $invite.AccountId
+                Write-Host "Member Account Invitation:" $invite.InvitationId
+                Write-Host "Guard Duty Master Account:" $invite.AccountId
 
-        New-GDMember -AccountDetail $AccountDetails -Region $current_region -DetectorId $current_region_detectorid -Credential $guard_duty_Credentials
-        Send-GDMemberInvitation -AccountId $new_account_id -Region $current_region -DetectorId $current_region_detectorid -DisableEmailNotification $true -Credential $guard_duty_Credentials
-        Start-Sleep -Seconds 2
+                # will confirm the invite in the member account from the master guard duty account
+                Confirm-GDInvitation -DetectorId $new_member_detector -InvitationId $invite.InvitationId -MasterId $invite.AccountId -Region $detectorRegion -Credential $org_account_Credentials
 
-        # this will retrieve the inivitiation from the master account
-        $invite = Get-GDInvitationList -Credential $invite_account_Credentials -Region $current_region
-        $invite_id = $invite.InvitationId
-        $invite_acct_id = $invite.AccountId
-        Write-Host "Member Account Invitation:" $invite_id
+                $Stoploop = $true
+            }
+            catch {
+                if ($Retrycount -gt $retry_limit) {
+                    Write-Host "Could not find the Invitation after $Retrycount attempts."
 
-        # will confirm the invite in the member account from the master guard duty account
-        Confirm-GDInvitation -DetectorId $new_member_detector -InvitationId $invite_id -MasterId $invite_acct_id -Credential $invite_account_Credentials -Region $current_region
+                    $guard_duty_details = @{
+                        name  = 'GuardDuty Setup'
+                        value = 'Failed'
+                    }
+                    $notification.Add($guard_duty_details)
+
+                    $Stoploop = $true
+                }
+                else {
+                    Write-Host "Waiting $wait_time seconds and retrying to find the invitation..."
+                    Start-Sleep -Seconds $wait_time
+                    $Retrycount = $Retrycount + 1
+                }
+            }
+        }
+        While ($Stoploop -eq $false)
+
+        $guard_duty_details = @{
+            name  = "GuardDuty: $detectorRegion"
+            value = 'Success'
+        }
+        $notification.Add($guard_duty_details)
+
     }
 
 }
@@ -453,93 +719,131 @@ function delete_default_vpc {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $org_role_name,
-        [Parameter(Mandatory = $true, Position = 1)]
         [string] $new_account_id
     )
 
     Write-Host "Checking the current VPC's...."
 
-    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
-
-    $Response = (Use-STSRole -RoleArn $role -RoleSessionName "assumedrole").Credentials
-    # -ProfileName prodorganization
-    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
-
-    $vpc_regions = "ap-northeast-1", "ap-northeast-2", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1", "sa-east-1", "us-east-1", "us-east-2", "us-west-1", "us-west-2"
+    $vpc_regions = "us-east-1", "us-east-2", "us-west-1", "us-west-2", "ap-northeast-1", "ap-northeast-2", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1", "sa-east-1"
     $regions_count = $vpc_regions.count
+
+    Write-Host "----------------------------------------------"
+    Write-Host "Checking for Default VPCs in" $regions_count "regions."
+    Write-Host "----------------------------------------------"
+
+    $vpc_delete_count = 0
 
     $vpc_regions | ForEach-Object -Process {
         $current_region = $_
-        $current_account = Get-STSCallerIdentity -Credential $Credentials
+        $current_account = Get-STSCallerIdentity -Credential $org_account_Credentials
 
         Write-Host "----------------------------------------------"
-        Write-Host "Checking for Default VPCs in" $regions_count "regions."
         Write-Host "Current Account:" $current_account.Account
         Write-Host "Current Region:" $current_region
         Write-Host "----------------------------------------------"
 
-        $vpc = Get-EC2Vpc -Region $current_region -Credential $Credentials -Filter @{Name = "isDefault"; Value = "true" }
-        # Write-Host "There are" ($vpc).count "Default VPCs in the Account"
+        $wait_time = 10
+        $retry_limit = 7
+        $Stoploop = $false
+        [int]$Retrycount = "0"
 
-        if ($vpc.count -eq 0) {
-            Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
-        }
-        elseif ($vpc.count -gt 0) {
-            $igw = Get-EC2InternetGateway -Region $current_region -Credential $Credentials -Filter @{Name = "attachment.vpc-id"; Value = $vpc.VpcId }
-            if ($igw) {
-                Write-Host " --- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
-                Dismount-EC2InternetGateway -Region $current_region -Credential $Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
-                if ($? -eq $true) {
-                    Write-Host " --- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                }
-                elseif ($? -eq $false) {
-                    Write-Host " --- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
-                }
-                Write-Host " --- Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
-                Remove-EC2InternetGateway -Region $current_region -Credential $Credentials -InternetGatewayId $igw.InternetGatewayId -Force
-                if ($? -eq $true) {
-                    Write-Host " --- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
-                }
-                elseif ($? -eq $false) {
-                    Write-Host " --- Failed to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
-                }
-            }
-            elseif ($igw -eq $null) {
-                Write-Host " --- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
-            }
+        do {
+            try {
+                # Scripts Commands here
+                Write-Host "Attempt Number: $Retrycount"
+                Write-Host "Looking up VPC in the reigon."
+                $vpc = Get-EC2Vpc -Region $current_region -Credential $org_account_Credentials -Filter @{Name = "isDefault"; Values = "true" }
 
-            $subnets = Get-EC2Subnet -Region $current_region -Credential $Credentials -Filter @{Name = "vpc-id"; Value = $vpc.VpcId }
-            if ($subnets) {
-                Write-Host ""
-                Write-Host " --- Attempting to remove subnets from Default VPC" $vpc.VpcId -ForegroundColor Yellow
-                $subnets | ForEach-Object -Process {
-                    # Write-Host $current_region
-                    Write-Host " --- Removing Subnet:" $_.SubnetId -ForegroundColor Red
-                    Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $Credentials -Force
+                if ($vpc.count -eq 0) {
+                    Write-Host " --- There are no Default VPCs in" $current_region -ForegroundColor Yellow
+                }
+                elseif ($vpc.count -gt 0) {
+                    Write-Host "Tring to find Internet Gateway for VPC: " $vpc.VpcId
+                    $igw = Get-EC2InternetGateway -Region $current_region -Credential $org_account_Credentials -Filter @{Name = "attachment.vpc-id"; Values = $vpc.VpcId }
+                    if ($igw) {
+                        Write-Host " ---- Attempting to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
+                        Dismount-EC2InternetGateway -Region $current_region -Credential $org_account_Credentials -VpcId $vpc.VpcId -InternetGatewayId $igw.InternetGatewayId
+                        if ($? -eq $true) {
+                            Write-Host " ---- Succesfully dismounted" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
+                        }
+                        elseif ($? -eq $false) {
+                            Write-Host " ---- Failed to dismount" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
+                        }
+                        Write-Host " ---- Attempting to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Yellow
+                        Remove-EC2InternetGateway -Region $current_region -Credential $org_account_Credentials -InternetGatewayId $igw.InternetGatewayId -Force
+                        if ($? -eq $true) {
+                            Write-Host " ---- Succesfully removed" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Green
+                        }
+                        elseif ($? -eq $false) {
+                            Write-Host " ---- Failed to remove" $igw.InternetGatewayId "from VPC" $vpc.VpcId -ForegroundColor Red
+                        }
+                    }
+                    elseif ($null -eq $igw) {
+                        Write-Host " ---- There are no Internet Gateways attached to VPC" $vpc.VpcId -ForegroundColor Yellow
+                    }
+
+                    $subnets = Get-EC2Subnet -Region $current_region -Credential $org_account_Credentials -Filter @{Name = "vpc-id"; Values = $vpc.VpcId }
+                    if ($subnets) {
+                        Write-Host ""
+                        Write-Host " ---- Attempting to remove subnets from Default VPC" $vpc.VpcId -ForegroundColor Yellow
+                        $subnets | ForEach-Object -Process {
+                            # Write-Host $current_region
+                            Write-Host " ---- Removing Subnet:" $_.SubnetId -ForegroundColor Red
+                            Remove-EC2Subnet -SubnetId $_.SubnetId -Region $current_region -Credential $org_account_Credentials -Force
+                            if ($? -eq $true) {
+                                Write-Host " ---- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
+                            }
+                            elseif ($? -eq $false) {
+                                Write-Host " ---- Failed to remove" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Red
+                            }
+                        }
+                    }
+                    elseif ($null -eq $subnets) {
+                        Write-Host " ---- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
+                    }
+                    Write-Host " ---- Attempting to remove Default VPC" $vpc.VpcId -ForegroundColor Yellow
+                    Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $org_account_Credentials -Force
+
+                    $vpc_delete_count++
+
                     if ($? -eq $true) {
-                        Write-Host " --- Succesfully removed" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Green
+                        Write-Host " ---- Succesfully removed Default VPC" $vpc.VpcId -ForegroundColor Green
                     }
                     elseif ($? -eq $false) {
-                        Write-Host " --- Failed to remove" $_.SubnetId "from VPC" $vpc.VpcId -ForegroundColor Red
+                        Write-Host " ---- Failed to remove Default VPC" $vpc.VpcId -ForegroundColor Red
                     }
+
+                }
+                $Stoploop = $true
+            }
+            catch {
+                if ($Retrycount -gt $retry_limit) {
+                    Write-Host "Could not get VPC Information after $retry_limit attempts."
+                    $Stoploop = $true
+                }
+                else {
+                    Write-Host "Waiting $wait_time seconds and retrying..."
+                    Start-Sleep -Seconds $wait_time
+                    $Retrycount = $Retrycount + 1
                 }
             }
-            elseif ($subnets -eq $null) {
-                Write-Host " --- There are no subnets in the VPC" $vpc.VpcId -ForegroundColor Yellow
-            }
-            Write-Host " --- Attempting to remove Default VPC" $vpc.VpcId -ForegroundColor Yellow
-            Remove-EC2Vpc -VpcId $vpc.VpcId -Region $current_region -Credential $Credentials -Force
-            if ($? -eq $true) {
-                Write-Host " --- Succesfully removed Default VPC" $vpc.VpcId -ForegroundColor Green
-            }
-            elseif ($? -eq $false) {
-                Write-Host " --- Failed to remove Default VPC" $vpc.VpcId -ForegroundColor Red
-            }
-
         }
+        While ($Stoploop -eq $false)
+
+        $vpc_cleanup_details = @{
+            name  = "Default VPC: $current_region"
+            value = 'Success - Deleted'
+        }
+        $notification.Add($vpc_cleanup_details)
 
     }
+
+    $vpc_cleanup_total = @{
+        name  = "Default VPCs"
+        value = "Deleted $vpc_delete_count out of $regions_count"
+    }
+    $notification.Add($vpc_cleanup_total)
+
 }
 
 
@@ -561,64 +865,67 @@ function update_account_alias {
         [Parameter(Mandatory = $true, Position = 0)]
         [string] $account_alias,
         [Parameter(Mandatory = $true, Position = 1)]
-        [string] $new_account_id,
-        [Parameter(Mandatory = $true, Position = 2)]
-        [string] $org_role_name
+        [string] $new_account_id
     )
 
     Write-Host "Checking the current IAM Account Alias...."
 
-    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
-
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole").Credentials
-    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
-
     # check the current iam account alias
-    $current_account_alias = Get-IAMAccountAlias -Credential $Credentials
+    $current_account_alias = Get-IAMAccountAlias -Credential $org_account_Credentials
     if ($current_account_alias -ne $account_alias) {
-        Write-Host "------------------------------"
+        Write-Host "------------------------------------------------------------------------------------------"
         Write-Host "Changing IAM Account Alias...."
-        Write-Host "------------------------------"
-        Write-Host ""
-        New-IAMAccountAlias -AccountAlias $account_alias -Credential $Credentials
+
+        New-IAMAccountAlias -AccountAlias $account_alias -Credential $org_account_Credentials
 
         # check to see if the iam account alias was succesfully updated
-        $new_account_alias = Get-IAMAccountAlias -Credential $Credentials
+        $new_account_alias = Get-IAMAccountAlias -Credential $org_account_Credentials
         if ($new_account_alias -eq $account_alias) {
-            Write-Host "--------------- IAM Alias creation Successful -----------------------"
+            Write-Host "IAM Alias Successfully Created"
             Write-Host "IAM Sign-In URL: https://$account_alias.signin.aws.amazon.com/console"
-            Write-Host "---------------------------------------------------------------------"
+            Write-Host "------------------------------------------------------------------------------------------"
             Write-Host ""
         }
     }
     elseif ($current_account_alias -eq $account_alias) {
         # current iam account alias is already set up to match
-        Write-Host "----------------------------------------------"
         Write-Host "IAM Account is already correct. Nothing to do."
-        Write-Host "----------------------------------------------"
+        Write-Host "------------------------------------------------------------------------------------------"
         Write-Host ""
     }
 
-    Write-Host "----------------------------------------"
+    Write-Host "------------------------------------------------------------------------------------------"
     Write-Host "Changing IAM Account Password Policy...."
-    Write-Host "----------------------------------------"
-    Write-Host ""
 
     Try {
-        Update-IAMAccountPasswordPolicy -MaxPasswordAge 90 -PasswordReusePrevention 6 -RequireLowercaseCharacter $true -RequireNumber $true -RequireSymbol $true -RequireUppercaseCharacter $true -Credential $Credentials
-        $password_policy = Get-IAMAccountPasswordPolicy -Credential $Credentials
+        Update-IAMAccountPasswordPolicy -MaxPasswordAge 90 -PasswordReusePrevention 6 -RequireLowercaseCharacter $true -RequireNumber $true -RequireSymbol $true -RequireUppercaseCharacter $true -Credential $org_account_Credentials
+        $password_policy = Get-IAMAccountPasswordPolicy -Credential $org_account_Credentials
 
         Write-Host ($password_policy | ConvertTo-Json)
-        Write-Host "------------------------------------------------"
-        Write-Host "---- IAM Account Password Policy Successful ----"
+        Write-Host "IAM Account Password Policy Successfully Updated"
 
         $password_policy = $password_policy | ConvertTo-Json | ConvertFrom-Json
-        Write-Host "------------------------------------------------"
-        post_to_teams -process "IAM Account Password Policy" -status "Success" -details $password_policy
+        Write-Host "------------------------------------------------------------------------------------------"
+
+        $iamurldetails = @{
+            name  = 'IAM Console URL'
+            value = "https://$account_alias.signin.aws.amazon.com/console"
+        }
+        $notification.Add($iamurldetails)
+
+        # post_to_teams -process "IAM Account Password Policy" -status "Success" -details $password_policy
     }
     Catch {
-        Write-Host "An error occurred: " + $error[0].Exception.message -ForegroundColor Green
-        post_to_teams -process "IAM Account Password Policy" -status "Failure" -details $error[0].Exception.message
+        $error_message = $error[0].Exception.message
+        Write-Host "An error occurred: " + $error_message
+
+        $iamurldetails = @{
+            name  = 'IAM Console Alias'
+            value = "Failed - $error_message"
+        }
+        $notification.Add($iamurldetails)
+
+        # post_to_teams -process "IAM Account Password Policy" -status "Failure" -details $error[0].Exception.message
     }
 
 }
@@ -637,9 +944,7 @@ function update_saml_identity_provider {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
-        [string] $new_account_id,
-        [Parameter(Mandatory = $true, Position = 1)]
-        [string] $org_role_name
+        [string] $new_account_id
     )
 
     $saml_64 = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/saml_64" –WithDecryption $true).Parameters.Value
@@ -647,30 +952,34 @@ function update_saml_identity_provider {
 
     Write-Host "Checking the current IAM SAML Provider...."
 
-    # AWSControlTowerExecution
-    $role = "arn:aws:iam::" + $new_account_id + ":role/" + $org_role_name
-
-    $Response = (Use-STSRole -Region us-east-2 -RoleArn $role -RoleSessionName "assumedrole").Credentials #dont forget to comment out the organiazation profile here
-    # -ProfileName prodorganization
-    $Credentials = New-AWSCredentials -AccessKey $Response.AccessKeyId -SecretKey $Response.SecretAccessKey -SessionToken $Response.SessionToken
-
     Try {
 
         $calculated_saml_arn = "arn:aws:iam::" + $new_account_id + ":saml-provider/QL-Ping-Prod"
-        $response_saml = New-IAMSAMLProvider -Name "QL-Ping-Prod" -SAMLMetadataDocument $saml -Credential $Credentials
+        $response_saml = New-IAMSAMLProvider -Name "QL-Ping-Prod" -SAMLMetadataDocument $saml -Credential $org_account_Credentials
 
         if ($calculated_saml_arn -eq $response_saml) {
+            Write-Host "------------------------------------------------------------------------------------------"
             Write-Host "Checking SAML IAM Provider...."
-            Write-Host "------------------------------"
-            Write-Host "SAML IAM creation Successful  "
+            Write-Host "SAML IAM Provider Successfully created"
+            Write-Host "------------------------------------------------------------------------------------------"
 
-            post_to_teams -process "Account SAML Provider" -status "Success" -details $response_saml
+            $iamsaml = @{
+                name  = 'SAML Provider Creation'
+                value = 'Success'
+            }
+            $notification.Add($iamsaml)
         }
 
     }
     Catch {
-        Write-Host "An error occurred: " + $error[0].Exception.message -ForegroundColor Green
-        post_to_teams -process "Account SAML Provider" -status "Failure" -details $error[0].Exception.message
+        $error_message = $error[0].Exception.message
+        Write-Host "An error occurred: " + $error_message
+
+        $iamsaml = @{
+            name  = 'SAML Provider Creation'
+            value = "Failure - $error_message"
+        }
+        $notification.Add($iamsaml)
     }
 
 }
@@ -695,7 +1004,7 @@ function add_account_to_grafana {
 
     Write-Host "Attempting to add new AWS account to Grafana...."
 
-    $grafana_url = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/grafana_url" –WithDecryption $true).Parameters.Value
+    $grafana_url = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/$" –WithDecryption $true).Parameters.Value
     # -ProfileName prodorganization
     $grafana_token = (Get-SSMParameterValue -Name "/kraken/$kraken_env/$app_id/grafana_token" –WithDecryption $true).Parameters.Value
     # -ProfileName prodorganization
@@ -704,7 +1013,7 @@ function add_account_to_grafana {
     $headers.Add('Content-Type', 'application/json')
     $headers.Add('Authorization', 'Bearer ' + $grafana_token)
 
-    $body = ConvertTo-Json -Compress -Depth 2 @{
+    $body = ConvertTo-Json -Compress @{
         name     = $account_name
         type     = 'cloudwatch'
         url      = 'http://monitoring.us-east-2.amazonaws.com'
@@ -717,12 +1026,27 @@ function add_account_to_grafana {
     }
 
     try {
-        $response = Invoke-RestMethod -Uri $grafana_url -Method 'POST' -Headers $headers -Body $body -ContentType 'application/json'
+        $method = 'POST'
+        $content_type = 'application/json'
+        $response = Invoke-RestMethod -Uri $grafana_url -Method $method -Headers $headers -Body $body -ContentType $content_type
         Write-Host ($response | ConvertTo-Json)
+
+        $grafana_detail = @{
+            name  = 'Grafana'
+            value = 'Success'
+        }
+        $notification.Add($grafana_detail)
+
     }
     catch {
-        Write-Host "An error occurred:"
-        Write-Host $_
+        $error_message = $_
+        Write-Host "An error occurred: " + $error_message
+
+        $iamsaml = @{
+            name  = 'Grafana'
+            value = "Failure - $error_message"
+        }
+        $notification.Add($iamsaml)
     }
 
 }
@@ -756,7 +1080,7 @@ $kraken_env = $ENV:KRAKEN_ENV
 # Start of the acccount creation process
 Write-Host (ConvertTo-Json -InputObject $LambdaInput -Compress -Depth 5)
 $account_to_create_name = "[" + $LambdaInput.FOC + "]" + " " + $LambdaInput.AccountName + " " + $LambdaInput.Environment
-$account_to_create_email = "AWS-" + $LambdaInput.FOC + ($LambdaInput.AccountName -replace '\s', '') + "-" + $LambdaInput.Environment + "-Root@quickenloans.com"
+$account_to_create_email = "AWS-DL-" + $LambdaInput.FOC + ($LambdaInput.AccountName -replace '\s', '') + "-" + $LambdaInput.Environment + "-Root@quickenloans.com"
 # $LambdaInput.Email
 $account_to_create_billing = "ALLOW"
 $account_environment = ($LambdaInput.Environment).tolower()
@@ -779,60 +1103,91 @@ Try {
 
     $check_status = Get-ORGAccountCreationStatus -Region "us-east-2" -CreateAccountRequestId $create_account.Id
 
+    #Start to build notification, need to add additional stuff to this from other functions
+    $notification = New-Object 'System.Collections.Generic.List[System.Object]'
+
     Do {
-        Write-Host "$(Get-TimeStamp) - Waiting for account to finish creating...."
+        Write-Host "Waiting for account to finish creating...."
         Start-Sleep -Seconds 1
         $check_status = Get-ORGAccountCreationStatus -Region us-east-2 -CreateAccountRequestId $create_account.Id
         if ($check_status.State.Value -eq "SUCCEEDED") {
 
             $new_account = Get-ORGAccount -region "us-east-2" -AccountId $check_status.AccountId
-            $account_tags = @(@{key = "app-id"; value = "203880" }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" }, @{key = "environment"; value = $account_environment }, @{key = "release-train"; value = $account_release_train }, @{key = "stream"; value = $account_stream })
+            $account_tags = @(@{key = "app-id"; value = $app_id }, @{key = "product-id"; value = "000000" }, @{key = "iac"; value = "serverless" }, @{key = "environment"; value = $account_environment }, @{key = "release-train"; value = $account_release_train }, @{key = "stream"; value = $account_stream })
 
             Add-ORGResourceTag -ResourceId $new_account.Id -Tag $account_tags
 
-            Write-Host "$(Get-TimeStamp) ---- Account Creation Successful ----"
+            Write-Host "---- Account Creation Successful ----"
             Write-Host "Account ID:    " $new_account.Id
             Write-Host "Account Name:  " $new_account.Name
             Write-Host "Account Email: " $new_account.Email
 
-            $new_account_id = "Account Number: " + $new_account.Id  # this is just needed for the teams message, need to change the variable name
+            $account_name_details = @{
+                name  = "Account Name"
+                value = $account_to_create_name
+            }
+            $notification.Add($account_name_details)
 
-            # post message to teams channel on success
-            post_to_teams -process "Account Creation" -status "Success" -details $new_account_id
+            $account_detail = @{
+                name  = "Account ID"
+                value = $new_account.Id
+            }
+            $notification.Add($account_detail)
+
+            $org_account_Credentials = org_account_assume_credentials -new_account_id $new_account.Id
+
+            $new_account_name_alias = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
+
+            add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
+
+            Write-Host "IAM Account Alias:" $new_account_name_alias
+            update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id
+            update_saml_identity_provider -new_account_id $new_account.Id
+
+            create_stackset_exec_role -new_account_id $new_account.Id
+            # add_account_stackset -new_account_id $new_account.Id -environment $account_environment -foc $account_foc
+
+            delete_default_vpc -new_account_id $new_account.Id
 
             if ($account_environment -eq "prod") {
                 add_account_ent_support -new_account_id $new_account.Id
-                # add_account_to_account_governance  -new_account_id $new_account.Id -account_name $account_to_create_name
-                add_account_to_hal -new_account_id $new_account.Id -environment $account_environment -alias $new_account_name_alias -release_train $release_train -stream $stream -action $action
+                add_account_to_account_governance -new_account_id $new_account.Id -account_name $account_to_create_name -account_environment $account_environment -release_train $release_train -stream $stream
+                $grafana_account_format = $account_to_create_name + " (" + $new_account.Id + ")"
+                add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
             }
 
-            $new_account_name_alias = ($new_account.Name).tolower() -replace "((?![a-z0-9\-]).)", ""
-            update_account_alias -account_alias $new_account_name_alias -new_account_id $new_account.Id -org_role_name $organization_role
-            update_saml_identity_provider -new_account_id $new_account.Id -org_role_name $organization_role
+            Write-Host "Creating set of Credentials in Guard Duty Master Account....."
+            $gd_master_Credentials = guard_duty_master_account_assume_credentials
+            setup_guard_duty -new_account_id $new_account.Id -email_address $account_to_create_email
 
-            create_stackset_exec_role -org_role_name $organization_role -new_account_id $new_account.Id
-            add_account_stackset -new_account_id $new_account.Id -environment $account_environment -foc $account_foc
-
-            setup_guard_duty -org_role_name $organization_role -new_account_id $new_account.Id -email_address $account_to_create_email
-            delete_default_vpc -org_role_name $organization_role -new_account_id $new_accout.Id
-
-            $grafana_account_format = $account_to_create_name + " (" + $new_account.Id + ")"
-            add_account_to_grafana -new_account_id $new_account.Id -account_name $grafana_account_format
+            post_to_teams -process "Account Creation" -status "Success" -details $notification
 
         }
         elseIf ($check_status.State.Value -eq "FAILED" -and $check_status.FailureReason.Value -eq "EMAIL_ALREADY_EXISTS") {
-            Write-Host "$(Get-TimeStamp) ---- Account Creation Failed ----"
+            Write-Host "---- Account Creation Failed ----"
             Write-Host "Failure Reason: Email Address is in use by another account in the Organization. Needs to be unique."
             Write-Host "Request ID:    " $check_status.Id
             Write-Host "Request Time:  " $check_status.RequestedTimestamp
 
             # post message to teams channel on failure
-            post_to_teams -process "Account Creation" -status "Failure" -details "Email address is already in use for another account in the Organization."
+            $account_detail = @{
+                name  = 'Account Creation Failed'
+                value = "Email address is already in use for another account in the Organization."
+            }
+            $notification.Add($account_detail)
+
+            $account_detail_request = @{
+                name  = "Account Requested"
+                value = $account_to_create_name
+            }
+            $notification.Add($account_detail_request)
+
+            post_to_teams -process "Account Creation" -status "Failure" -details $notification
         }
     } While ($check_status.State.Value -eq "IN_PROGRESS")
 }
 Catch {
-    Write-Host "An error occurred:"
-    Write-Host $_
+    $error_message = $error[0].Exception.message
+    Write-Host "An error occurred: " + $error_message
     Break
 }
