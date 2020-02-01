@@ -1,0 +1,26 @@
+name: CI
+
+on: 
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run a one-line script
+      run: echo Hello, world!
+    - name: Install Dependencies
+      run: |
+        Install-Module -Name AWS.Tools.CognitoIdentityProvider -Force
+        Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force
+    - name: Check for AWS Modules
+      run: |
+        Get-Module -Name AWS*
