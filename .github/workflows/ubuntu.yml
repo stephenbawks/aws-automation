@@ -24,5 +24,4 @@ jobs:
     - name: Package Up Artifact for Lambda
       run: |
         mkdir artifact
-        pwd
-        ls -la
+        pwsh -command New-AWSPowershellLambdaPackage ~/new-org-account.ps1 -OutputPackage ~/artifact/new-org-account.zip
