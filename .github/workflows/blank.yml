@@ -19,8 +19,8 @@ jobs:
       run: echo Hello, world!
     - name: Install Dependencies
       run: |
-        Install-Module -Name AWS.Tools.CognitoIdentityProvider
-        Install-Module -Name AWS.Tools.SimpleSystemsManagement
+        Install-Module -Name AWS.Tools.CognitoIdentityProvider -Force
+        Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force
     - name: Run a multi-line script
       run: |
         Write-Host "Hello World!"
