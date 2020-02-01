@@ -11,16 +11,11 @@ on:
 jobs:
   build:
 
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Run a one-line script
-      run: echo Hello, world!
-    - name: Install Dependencies
+    - name: Install Updates
       run: |
-        Install-Module -Name AWS.Tools.CognitoIdentityProvider -Force
-        Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force
-    - name: Check for AWS Modules
-      run: |
-        Get-Module -Name AWS*
+        apt update && apt upgrade -y
+    - name: Install Powershell
+      run: apt-get install -y powershell
