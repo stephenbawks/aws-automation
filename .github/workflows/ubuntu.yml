@@ -18,6 +18,8 @@ jobs:
       run: |
         sudo apt update
         sudo apt install qt5-default libqt5svg5-dev qttools5-dev-tools zlib1g-dev qtdeclarative5-dev qtdeclarative5-private-dev qbs python3-dev
+    - name: Install AWS CLI
+      run: pip3 install awscli
     - name: Install Powershell
       run: |
         sudo apt-get install -y powershell
