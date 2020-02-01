@@ -16,7 +16,7 @@ jobs:
     steps:
     - name: Update PIP
       run: pip install --upgrade pip
-    - name: Install Powershell
+    - name: Install Powershell Modules
       run: |
         pwsh -command Write-Host 'Hello Wrold'
         pwsh -command Install-Module -Name AWSLambdaPSCore -Scope CurrentUser -Force
@@ -24,4 +24,5 @@ jobs:
     - name: Package Up Artifact for Lambda
       run: |
         mkdir artifact
+        pwd
         ls -la
