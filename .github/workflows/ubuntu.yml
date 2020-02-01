@@ -10,7 +10,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -24,4 +23,4 @@ jobs:
     - name: Package Up Artifact for Lambda
       run: |
         mkdir artifact
-        pwsh -command New-AWSPowershellLambdaPackage ~/new-org-account.ps1 -OutputPackage ~/artifact/new-org-account.zip
+        pwsh -command New-AWSPowershellLambdaPackage new-org-account.ps1 -OutputPackage ./artifact/new-org-account.zip
