@@ -16,6 +16,6 @@ jobs:
     steps:
     - name: Install Updates
       run: |
-        apt update && apt upgrade -y
+        sudo apt update && apt upgrade -y
     - name: Install Powershell
-      run: apt-get install -y powershell
+      run: sudo apt-get install -y powershell
