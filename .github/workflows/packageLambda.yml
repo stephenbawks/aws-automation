@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout Code 
+      uses: actions/checkout@v2
+      with:
+        path: main
     - name: Update PIP
       run: pip install --upgrade pip
     - name: Install Powershell Modules
@@ -21,7 +25,6 @@ jobs:
         pwsh -command Install-Module -Name AWSLambdaPSCore -Scope CurrentUser -Force
         pwsh -command Import-Module -Name AWSLambdaPSCore
     - name: Package Up Artifact for Lambda
-    - uses: actions/checkout@v2
       run: |
         mkdir artifact
         pwd
