@@ -23,12 +23,12 @@ jobs:
       run: pip install --upgrade pip
     - name: Install Powershell Modules
       run: |
-        pwsh -command Write-Host 'Hello Wrold'
+        pwsh -command Write-Host 'Install and Import AWS Powershell Lambda Core'
         pwsh -command Install-Module -Name AWSLambdaPSCore -Scope CurrentUser -Force
         pwsh -command Import-Module -Name AWSLambdaPSCore
     - name: Package Up Artifact for Lambda
       run: |
         ls -la ${{ github.workspace }}/main
-        pwsh -command New-AWSPowershellLambdaPackage ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
+        pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
         cd ~
         ls -la
