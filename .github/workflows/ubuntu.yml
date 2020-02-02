@@ -24,6 +24,6 @@ jobs:
       run: |
         mkdir artifact
         pwd
-        ls -la . ..\..
+        ls -la /home/runner/work/aws-automation
         cd ~
         ls -la
