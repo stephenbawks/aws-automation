@@ -52,6 +52,8 @@ jobs:
         uses: actions/download-artifact@v1
         with:
             name: new-org-account
+      - name: Find Location
+        run: ls -la ${{ github.workspace }}/main
         
        
 
