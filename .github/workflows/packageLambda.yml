@@ -3,6 +3,7 @@ env:
     OUTPUT_PATH: ${{ github.workspace }}/.output
     S3_BUCKET_NAME: testinglambdaautionforstuff
     LAMBDA_FUNCTION: testlambda
+    LAMBDA_REGION: us-east-2
 
 on: 
   push:
@@ -49,7 +50,7 @@ jobs:
         with:
             aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
             aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: us-east-2
+            aws-region: ${{ env.LAMBDA_REGION }}
       - name: Test AWS Credentials
         if: success()
         run: aws s3 ls 
