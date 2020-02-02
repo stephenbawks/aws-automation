@@ -65,6 +65,11 @@ jobs:
       - name: Update Lambda Code
         if: success()
         run: aws lambda update-function-code --publish --function-name ${{ env.LAMBDA_FUNCTION }} --s3-bucket ${{ env.S3_BUCKET_NAME }} --s3-key new-org-account-${{ github.sha }}.zip
+      - name: Post Adaptive Card
+        uses: davidwengier/PostAdaptiveCard@v1.0.0
+        with:
+          # URI to the webhook to send the card to. If this is blank, the JSON payload will be written to stdout
+          webhook_uri: https://webhook.site/6e928caa-442a-4942-b98e-81b6bb756c11
         
         
        
