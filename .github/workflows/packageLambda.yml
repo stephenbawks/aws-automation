@@ -30,6 +30,6 @@ jobs:
       run: |
         mkdir artifact
         pwd
-        ls -la /home/runner/work/aws-automation/aws-automation
+        ls -la ${{ github.workspace }}/main
         cd ~
         ls -la
