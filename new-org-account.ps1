@@ -12,18 +12,18 @@
 # To include PowerShell modules with your Lambda function, like the AWSPowerShell.NetCore module, add a "#Requires" statement
 # indicating the module and version.
 
-# Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='3.3.604.0'}
-#Requires -Modules @{ModuleName = 'AWS.Tools.AWSSupport'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.CloudFormation'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.EC2'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.IdentityManagement'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.Lambda'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.Organizations'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.SecurityToken'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleNotificationService'; ModuleVersion = '3.3.604.0' }
-#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '3.3.604.0' }
+# Requires -Modules @{ModuleName='AWSPowerShell.NetCore';ModuleVersion='4.0.2.0'}
+#Requires -Modules @{ModuleName = 'AWS.Tools.AWSSupport'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.CloudFormation'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.EC2'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.GuardDuty'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.IdentityManagement'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.KeyManagementService'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.Lambda'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.Organizations'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SecurityToken'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleNotificationService'; ModuleVersion = '4.0.2.0' }
+#Requires -Modules @{ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '4.0.2.0' }
 
 # AWS Documentation
 # https://docs.aws.amazon.com/powershell/latest/reference/
