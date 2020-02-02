@@ -34,4 +34,4 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: new-org-account
-        path: ${{ github.workspace }}/.output
+        path: ${{ env.OUTPUT_PATH }}/new-org-account.zip
