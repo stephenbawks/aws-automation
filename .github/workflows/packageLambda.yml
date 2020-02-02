@@ -28,8 +28,7 @@ jobs:
         pwsh -command Import-Module -Name AWSLambdaPSCore
     - name: Package Up Artifact for Lambda
       run: |
-        mkdir artifact
-        pwd
         ls -la ${{ github.workspace }}/main
+        pwsh -command New-AWSPowershellLambdaPackage ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
         cd ~
         ls -la
