@@ -64,6 +64,7 @@ jobs:
         if: success()
         run: |
           aws lambda update-function-code \
+          --publish-version true
           --function-name  ${{ env.LAMBDA_FUNCTION }} \
           --s3-bucket ${{ env.S3_BUCKET_NAME }} \
           --s3-key new-org-account-${{ github.sha }}.zip
