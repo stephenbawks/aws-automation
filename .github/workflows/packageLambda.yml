@@ -15,22 +15,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code 
+    - name: Checkout Code
       uses: actions/checkout@v2
       with:
         path: main
     - name: Update PIP
+      if: success()
       run: pip install --upgrade pip
     - name: Install Powershell Modules
+      if: success()
       run: |
         pwsh -command Write-Host 'Install and Import AWS Powershell Lambda Core'
         pwsh -command Install-Module -Name AWSLambdaPSCore -Scope CurrentUser -Force
         pwsh -command Import-Module -Name AWSLambdaPSCore
     - name: Package Up Artifact for Lambda
+      if: success()
       run: |
         ls -la ${{ github.workspace }}/main
         pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
     - name: Upload Artifact
+      if: success()
       uses: actions/upload-artifact@v1
       with:
         name: new-org-account
