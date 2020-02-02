@@ -30,5 +30,8 @@ jobs:
       run: |
         ls -la ${{ github.workspace }}/main
         pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
-        cd ~
-        ls -la
+    - name: Upload Artifact
+    - uses: actions/checkout@v1
+      with:
+        name: new-org-account
+        path: ${{ github.workspace }}/.output
