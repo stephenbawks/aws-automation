@@ -54,11 +54,13 @@ jobs:
         if: success()
         run: aws s3 ls 
       - name: Download Build Artifact
+        if: success()
         uses: actions/download-artifact@v1
         with:
             name: new-org-account
             path: ${{ env.OUTPUT_PATH }}
       - name: S3 Upload Artifact
+        if: success()
         run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ env.S3_BUCKET_NAME }}/new-org-account-${{ github.sha }}.zip
       - name: Update Lambda Code
         if: success()
