@@ -21,6 +21,7 @@ jobs:
         pwsh -command Install-Module -Name AWSLambdaPSCore -Scope CurrentUser -Force
         pwsh -command Import-Module -Name AWSLambdaPSCore
     - name: Package Up Artifact for Lambda
+    - uses: actions/checkout@v1
       run: |
         mkdir artifact
         pwd
