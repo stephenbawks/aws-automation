@@ -57,7 +57,7 @@ jobs:
             name: new-org-account
             path: ${{ env.OUTPUT_PATH }}
       - name: S3 Upload Artifact
-        run: aws s3 cp ${{ env.OUTPUT_PATH }}new-org-account.zip s3://${{ secrets.S3_BUCKET_NAME }}/new-org-account-${{ github.GITHUB_SHA }}.zip
+        run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ secrets.S3_BUCKET_NAME }}/new-org-account-${{ github.GITHUB_SHA }}.zip
         
        
 
