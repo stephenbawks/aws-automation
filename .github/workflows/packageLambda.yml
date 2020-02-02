@@ -1,4 +1,6 @@
-name: CI
+name: Build and Package Powershell Lambda
+env:
+    OUTPUT_PATH: ${{ github.workspace }}/.output
 
 on: 
   push:
