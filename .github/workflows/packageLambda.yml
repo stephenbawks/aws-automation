@@ -70,6 +70,13 @@ jobs:
     needs: [build] # Make sure (and wait until) the build has succeeded
     runs-on: ubuntu-latest
     steps:
+      # Clone the repository to get the ./scripts/get-pkg-version.js and the ./package.json
+      - uses: actions/checkout@v2
+      - name: Retrieve the current package version
+        id: package_version
+        run: |
+          pkgver=$(node ./scripts/get-pkg-version.js)
+          echo ::set-output name=version::$pkgver
       - name: Download Build Artifact
         uses: actions/download-artifact@v1
         with:
@@ -81,10 +88,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: true
-          prerelease: false
+          tag_name: ${{ steps.package_version.outputs.version }}
+          release_name: Release ${{ steps.package_version.outputs.version }}
+          body: If you can read this, we have forgotten to fill in the changelog. Sorry!
+          draft: true # Always create as draft, so that we can populate the remaining values easily
       - name: Upload Release Asset
         id: upload-release-asset 
         uses: actions/upload-release-asset@v1.0.1
