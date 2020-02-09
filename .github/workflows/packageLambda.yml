@@ -33,7 +33,7 @@ jobs:
     - name: Package Up Artifact for Lambda
       if: success()
       run: |
-        ls -la ${{ github.workspace }}/main
+        # ls -la ${{ github.workspace }}/main
         pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account.zip
     - name: Upload Artifact
       if: success()
@@ -62,7 +62,7 @@ jobs:
             path: ${{ env.OUTPUT_PATH }}
       - name: S3 Upload Artifact
         if: success()
-        run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ env.S3_BUCKET_NAME }}/new-org-account-${{ github.sha }}.zip --no-progress
+        run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ env.S3_BUCKET_NAME }}/new-org-account-${{ github.sha }}.zip
       - name: Update Lambda Code
         if: success()
         run: aws lambda update-function-code --publish --function-name ${{ env.LAMBDA_FUNCTION }} --s3-bucket ${{ env.S3_BUCKET_NAME }} --s3-key new-org-account-${{ github.sha }}.zip
