@@ -26,6 +26,7 @@ jobs:
       run: |
         pkgver=$(node ./code/scripts/get-pkg-version.js)
         echo ::set-output name=version::$pkgver
+        echo "Version: $pkgver"
     - name: Install Powershell Modules
       if: success()
       run: |
