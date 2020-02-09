@@ -48,7 +48,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Clone the repository to get the ./scripts/get-pkg-version.js and the ./package.json
-      - uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          path: main
       - name: Retrieve the current package version
         id: package_version
         run: |
@@ -84,7 +87,10 @@ jobs:
       needs: [prepare_release]
       steps:
       # Clone the repository to get the ./scripts/get-pkg-version.js and the ./package.json
-      - uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          path: main
       - name: Retrieve the current package version
         id: package_version
         run: |
