@@ -62,7 +62,7 @@ jobs:
             path: ${{ env.OUTPUT_PATH }}
       - name: S3 Upload Artifact
         if: success()
-        run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ env.S3_BUCKET_NAME }}/new-org-account-${{ github.sha }}.zip
+        run: aws s3 cp ${{ env.OUTPUT_PATH }}/new-org-account.zip s3://${{ env.S3_BUCKET_NAME }}/new-org-account-${{ github.sha }}.zip --no-progress
       - name: Update Lambda Code
         if: success()
         run: aws lambda update-function-code --publish --function-name ${{ env.LAMBDA_FUNCTION }} --s3-bucket ${{ env.S3_BUCKET_NAME }} --s3-key new-org-account-${{ github.sha }}.zip
