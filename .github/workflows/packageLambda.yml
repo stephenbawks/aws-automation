@@ -24,7 +24,7 @@ jobs:
     - name: Retrieve the current package version
       id: package_version
       run: |
-        pkgver=$(node ./scripts/get-pkg-version.js)
+        pkgver=$(node ./main/scripts/get-pkg-version.js)
         echo ::set-output name=version::$pkgver
     - name: Install Powershell Modules
       if: success()
