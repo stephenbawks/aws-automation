@@ -1,0 +1,16 @@
+{
+    "name": "account-automation",
+    "author": {
+        "name": "Stephen Bawks",
+        "email": "stephen@bawks.dev"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/stephenbawks/aws-automation.git"
+    },
+    "version": "1.0.0-beta.1",
+    "description": "Doing all the manual crap I do not want to do anymore",
+    "license": "GPL-3.0",
+    "dependencies": {},
+    "devDependencies": {}
+}
