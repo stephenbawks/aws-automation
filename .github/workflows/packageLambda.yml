@@ -66,6 +66,15 @@ jobs:
       - name: Update Lambda Code
         if: success()
         run: aws lambda update-function-code --publish --function-name ${{ env.LAMBDA_FUNCTION }} --s3-bucket ${{ env.S3_BUCKET_NAME }} --s3-key new-org-account-${{ github.sha }}.zip
+  prepare_release:
+    needs: [build] # Make sure (and wait until) the build has succeeded
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v1
+        with:
+            name: new-org-account
+            path: ${{ env.OUTPUT_PATH }}
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
