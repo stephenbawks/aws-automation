@@ -49,6 +49,11 @@ jobs:
     steps:
       # Clone the repository to get the ./scripts/get-pkg-version.js and the ./package.json
       - uses: actions/checkout@v2
+      - name: Retrieve the current package version
+        id: package_version
+        run: |
+          pkgver=$(node ./main/scripts/get-pkg-version.js)
+          echo ::set-output name=version::$pkgver
       - name: Download Build Artifact
         uses: actions/download-artifact@v1
         with:
@@ -78,6 +83,13 @@ jobs:
       runs-on: [ubuntu-latest]
       needs: [prepare_release]
       steps:
+      # Clone the repository to get the ./scripts/get-pkg-version.js and the ./package.json
+      - uses: actions/checkout@v2
+      - name: Retrieve the current package version
+        id: package_version
+        run: |
+          pkgver=$(node ./main/scripts/get-pkg-version.js)
+          echo ::set-output name=version::$pkgver
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
