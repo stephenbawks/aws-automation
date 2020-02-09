@@ -20,11 +20,11 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v2
       with:
-        path: main
+        path: code
     - name: Retrieve the current package version
       id: package_version
       run: |
-        pkgver=$(node ./main/scripts/get-pkg-version.js)
+        pkgver=$(node ./code/scripts/get-pkg-version.js)
         echo ::set-output name=version::$pkgver
     - name: Install Powershell Modules
       if: success()
@@ -35,8 +35,8 @@ jobs:
     - name: Package Up Artifact for Lambda
       if: success()
       run: |
-        # ls -la ${{ github.workspace }}/main
-        pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/main/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account-${{ steps.package_version.outputs.version }}.zip
+        # ls -la ${{ github.workspace }}/code
+        pwsh -command New-AWSPowershellLambdaPackage -ScriptPath ${{ github.workspace }}/code/new-org-account.ps1 -OutputPackage ${{ env.OUTPUT_PATH }}/new-org-account-${{ steps.package_version.outputs.version }}.zip
     - name: Upload Artifact
       if: success()
       uses: actions/upload-artifact@v1
@@ -51,11 +51,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
         with:
-          path: main
+          path: code
       - name: Retrieve the current package version
         id: package_version
         run: |
-          pkgver=$(node ./main/scripts/get-pkg-version.js)
+          pkgver=$(node ./code/scripts/get-pkg-version.js)
           echo ::set-output name=version::$pkgver
       - name: Download Build Artifact
         uses: actions/download-artifact@v1
@@ -90,11 +90,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
         with:
-          path: main
+          path: code
       - name: Retrieve the current package version
         id: package_version
         run: |
-          pkgver=$(node ./main/scripts/get-pkg-version.js)
+          pkgver=$(node ./code/scripts/get-pkg-version.js)
           echo ::set-output name=version::$pkgver
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
