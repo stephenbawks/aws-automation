@@ -59,7 +59,7 @@ jobs:
           pkgver=$(node ./code/scripts/get-pkg-version.js)
           echo ::set-output name=version::$pkgver
       - name: Download Build Artifact
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4.1.7
         with:
             name: new-org-account-${{ steps.package_version.outputs.version }}.zip
             path: ${{ env.OUTPUT_PATH }}
@@ -107,7 +107,7 @@ jobs:
         run: aws s3 ls 
       - name: Download Build Artifact
         if: success()
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4.1.7
         with:
             name: new-org-account-${{ steps.package_version.outputs.version }}.zip
             path: ${{ env.OUTPUT_PATH }}
